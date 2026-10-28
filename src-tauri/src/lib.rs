@@ -1,14 +1,18 @@
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use std::{fs, path::PathBuf};
 use tauri::{
+    AppHandle, Manager, WebviewWindow, WindowEvent,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, WebviewWindow, WindowEvent,
 };
+use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_positioner::{Position, WindowExt};
 
 static LAST_HIDE: Mutex<Option<Instant>> = Mutex::new(None);
+// Sabitlenmişse popup dışarı tıklayınca kapanmaz (palet bundan etkilenmez)
+static PINNED: AtomicBool = AtomicBool::new(false);
 
 const KEYRING_SERVICE: &str = "ha-desk";
 const KEYRING_USER: &str = "ha-token";
@@ -169,6 +173,22 @@ fn toggle_popup(app: AppHandle) {
 }
 
 #[tauri::command]
+fn set_pinned(pinned: bool) {
+    PINNED.store(pinned, Ordering::Relaxed);
+}
+
+// Sadece http/https adreslerini varsayılan tarayıcıda açar (HA'da aç düğmesi için)
+#[tauri::command]
+fn open_url(app: AppHandle, url: String) -> Result<(), String> {
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("Geçersiz adres".into());
+    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn toggle_palette(app: AppHandle) {
     if let Some(w) = app.get_webview_window("palette") {
         if w.is_visible().unwrap_or(false) {
@@ -209,11 +229,16 @@ pub fn run() {
             delete_token,
             toggle_popup,
             toggle_palette,
-            hide_palette
+            hide_palette,
+            set_pinned,
+            open_url
         ])
         .on_window_event(|window, event| match event {
             WindowEvent::Focused(false) => {
                 if window.label() == "main" {
+                    if PINNED.load(Ordering::Relaxed) {
+                        return;
+                    }
                     *LAST_HIDE.lock().unwrap() = Some(Instant::now());
                 }
                 let _ = window.hide();

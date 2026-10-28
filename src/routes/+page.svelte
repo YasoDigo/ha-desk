@@ -28,6 +28,7 @@
   let tab: "baglanti" | "genel" | "kisayol" | "yedek" = "baglanti";
   let editing = false;
   let picking = false;
+  let pinned = false;
   let detailId: string | null = null;
   let pickGroup = "";
   let filter = "";
@@ -120,6 +121,12 @@
     } catch (e) {
       backupMsg = "Hata: " + String(e);
     }
+  }
+
+  // Sabitleyince popup dışarı tıklayınca kapanmaz
+  function togglePin() {
+    pinned = !pinned;
+    invoke("set_pinned", { pinned }).catch((e) => console.error(e));
   }
 
   // ---- kısayol tuşu kaydı ----
@@ -228,10 +235,10 @@
 <svelte:window on:keydown|capture={onKeyDown} on:blur={stopRecord} />
 
 <main>
-  <header>
-    <span class="dot {$status}"></span>
-    <strong>HA Desk</strong>
-    <span class="sp"></span>
+  <header data-tauri-drag-region>
+    <span class="dot {$status}" data-tauri-drag-region></span>
+    <strong data-tauri-drag-region>HA Desk</strong>
+    <span class="sp" data-tauri-drag-region></span>
     {#if view === "tiles" && connected}
       <div class="seg">
         <button class:sel={section === "tiles"} on:click={() => setSection("tiles")}>Kutucuklar</button>
@@ -239,6 +246,17 @@
       </div>
       <button class="icon" class:active={editing} on:click={() => { editing = !editing; picking = false; detailId = null; }} title="Düzenle">✎</button>
     {/if}
+    <button
+      class="icon"
+      class:active={pinned}
+      on:click={togglePin}
+      title={pinned ? "Sabitlemeyi kaldır" : "Açık tut (sabitle) ve başlıktan sürükle"}
+      aria-label="Sabitle"
+    >
+      <svg viewBox="0 0 24 24" width="14" height="14" fill={pinned ? "currentColor" : "none"} stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6z" /><line x1="12" y1="14" x2="12" y2="21" />
+      </svg>
+    </button>
     <button class="icon" class:active={view === "settings"} on:click={toggleSettings} title="Ayarlar">⚙</button>
   </header>
 
@@ -476,7 +494,7 @@
     gap: 10px;
   }
   header { display: flex; align-items: center; gap: 8px; }
-  .sp { flex: 1; }
+  .sp { flex: 1; align-self: stretch; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: #888; }
   .dot.connected { background: #3ecf6e; }
   .dot.connecting { background: #f0b429; }
@@ -524,7 +542,7 @@
   }
   button { cursor: pointer; }
   button:hover { background: var(--hover); }
-  .icon { padding: 3px 9px; font-size: 14px; }
+  .icon { padding: 3px 9px; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
   .icon.active { border-color: var(--accent); color: var(--accent); }
   .primary { background: var(--accent); color: #1a1a1a; border-color: var(--accent); font-weight: 600; }
   .primary:hover { background: var(--accent); filter: brightness(1.1); }

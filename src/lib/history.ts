@@ -1,11 +1,11 @@
 import { ha } from "./ha";
 
 export type Point = { t: number; v: number };
+export type StatePoint = { t: number; s: string };
 
-// Sensörün son N saatlik sayısal geçmişi (HA WebSocket geçmiş API'si)
-export async function fetchHistory(entityId: string, hours = 24): Promise<Point[]> {
-  const now = Date.now();
-  const start = new Date(now - hours * 3600_000).toISOString();
+// HA geçmişi: son N saatteki durum değişiklikleri (zaman + durum metni)
+async function rawStates(entityId: string, hours: number): Promise<StatePoint[]> {
+  const start = new Date(Date.now() - hours * 3600_000).toISOString();
   const res = await ha.call<Record<string, any[]>>({
     type: "history/history_during_period",
     start_time: start,
@@ -15,13 +15,25 @@ export async function fetchHistory(entityId: string, hours = 24): Promise<Point[
     significant_changes_only: false,
   });
 
-  const list = res?.[entityId] ?? [];
-  const pts: Point[] = [];
-  for (const p of list) {
-    const v = Number(p.s ?? p.state);
+  const out: StatePoint[] = [];
+  for (const p of res?.[entityId] ?? []) {
+    const s = String(p.s ?? p.state ?? "");
     const raw = p.lu ?? p.lc ?? p.last_updated ?? p.last_changed;
     const t = typeof raw === "number" ? raw * 1000 : Date.parse(raw);
-    if (Number.isFinite(v) && Number.isFinite(t)) pts.push({ t, v });
+    if (s !== "" && Number.isFinite(t)) out.push({ t, s });
+  }
+  return out;
+}
+
+export const fetchStates = rawStates;
+
+// Sayısal sensörler için: sadece sayıya çevrilebilen noktalar
+export async function fetchHistory(entityId: string, hours = 24): Promise<Point[]> {
+  const now = Date.now();
+  const pts: Point[] = [];
+  for (const p of await rawStates(entityId, hours)) {
+    const v = Number(p.s);
+    if (Number.isFinite(v)) pts.push({ t: p.t, v });
   }
 
   // HA yalnızca değişiklikleri kaydeder; sabit kalan sensörde tek nokta gelir.

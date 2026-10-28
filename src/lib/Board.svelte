@@ -3,13 +3,15 @@
   import { flip } from "svelte/animate";
   import { fade, fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
-  import { ha } from "$lib/ha";
+  import { invoke } from "@tauri-apps/api/core";
+  import { ha, activeUrl } from "$lib/ha";
   import type { HaEntity } from "$lib/ha";
   import type { Group, Tile as TileData, BoardOps } from "$lib/config";
   import { kindOf } from "$lib/tileKind";
   import Tile from "$lib/Tile.svelte";
   import SensorTile from "$lib/SensorTile.svelte";
   import SensorDetail from "$lib/SensorDetail.svelte";
+  import BinaryDetail from "$lib/BinaryDetail.svelte";
 
   export let kind: "tiles" | "sensors" = "tiles";
   export let groupsValue: Group[] = [];
@@ -37,9 +39,20 @@
     );
   }
 
+  const isBinarySensor = (e: HaEntity | undefined) => !!e && e.entity_id.startsWith("binary_sensor.");
+  const canOpen = (e: HaEntity | undefined) => isNumericSensor(e) || isBinarySensor(e);
+
   function openSensor(t: TileData) {
     if (kind !== "sensors" || editing) return;
-    if (isNumericSensor(ents[t.entity_id])) openId = t.entity_id;
+    if (canOpen(ents[t.entity_id])) openId = t.entity_id;
+  }
+
+  // HA'nın kendi geçmiş sayfasını varsayılan tarayıcıda açar
+  function openInHa(id: string) {
+    if (!$activeUrl) return;
+    invoke("open_url", {
+      url: `${$activeUrl}/history?entity_id=${encodeURIComponent(id)}`,
+    }).catch((e) => console.error(e));
   }
 
   function onConsider(gid: string, e: CustomEvent<{ items: TileData[] }>) {
@@ -172,7 +185,7 @@
           <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
           <div
             class="cell"
-            class:clickable={kind === "sensors" && !editing && isNumericSensor(ents[t.entity_id])}
+            class:clickable={kind === "sensors" && !editing && canOpen(ents[t.entity_id])}
             style="grid-column: span {t.span === 2 ? 2 : 1}"
             animate:flip={{ duration: FLIP_MS }}
             on:click={() => openSensor(t)}
@@ -226,7 +239,14 @@
       in:fly|global={{ y: 14, duration: 280, easing: cubicOut }}
       out:fade|global={{ duration: 120 }}
     >
-      <SensorDetail entityId={openId} entity={ents[openId]} onClose={() => (openId = null)} />
+      {#if openId.startsWith("binary_sensor.")}
+        <BinaryDetail entityId={openId} entity={ents[openId]} onClose={() => (openId = null)} />
+      {:else}
+        <SensorDetail entityId={openId} entity={ents[openId]} onClose={() => (openId = null)} />
+      {/if}
+      {#if $activeUrl}
+        <button class="halink" on:click={() => openInHa(openId ?? "")}>HA'da aç ↗</button>
+      {/if}
     </div>
   </div>
 {/if}
@@ -339,7 +359,24 @@
   }
   .focus {
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .focus > :global(.sdetail) {
     border-radius: 12px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   }
+  .halink {
+    align-self: flex-end;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-family: inherit;
+    color: inherit;
+    border: 1px solid var(--input-border);
+    border-radius: 8px;
+    background: var(--input-bg);
+    cursor: pointer;
+  }
+  .halink:hover { background: var(--hover); }
 </style>
