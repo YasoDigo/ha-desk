@@ -10,12 +10,14 @@ export type Action =
   | { type: "toggle" | "on" | "off" | "run"; entity_id: string }
   | { type: "adjust"; entity_id: string; delta: number }
   | { type: "set"; entity_id: string; value: number }
-  | { type: "popup" };
+  | { type: "popup" }
+  | { type: "palette" };
 export type Shortcut = { id: string; keys: string; action: Action };
 
 export type Settings = {
   connection: { primaryUrl: string; fallbackUrl: string };
   appearance: { theme: "dark" | "light" | "system"; accent: string };
+  palette: { sensors: boolean }; // komut paletinde sensörler de aransın mı
 };
 
 const VERSION = 1; // ileride format değişirse parse() içinde eski sürümleri buradan taşırız
@@ -23,6 +25,7 @@ const VERSION = 1; // ileride format değişirse parse() içinde eski sürümler
 const defaults: Settings = {
   connection: { primaryUrl: "", fallbackUrl: "" },
   appearance: { theme: "dark", accent: "#f0b429" },
+  palette: { sensors: false },
 };
 
 const newGroup = (title = ""): Group => ({ id: crypto.randomUUID(), title, tiles: [], master: [] });
@@ -71,7 +74,7 @@ function cleanGroups(raw: any): Group[] {
 
 function cleanAction(a: any): Action | null {
   if (!a || typeof a.type !== "string") return null;
-  if (a.type === "popup") return { type: "popup" };
+  if (a.type === "popup" || a.type === "palette") return { type: a.type };
   if (typeof a.entity_id !== "string") return null;
   switch (a.type) {
     case "toggle":
@@ -120,6 +123,7 @@ function parse(text: string): { s: Settings; g: Group[]; sg: Group[]; sc: Shortc
       theme: ["dark", "light", "system"].includes(a.theme) ? a.theme : defaults.appearance.theme,
       accent: /^#[0-9a-f]{6}$/i.test(a.accent) ? a.accent : defaults.appearance.accent,
     },
+    palette: { sensors: raw.palette?.sensors === true },
   };
   return {
     s,

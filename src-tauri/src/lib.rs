@@ -13,6 +13,10 @@ static LAST_HIDE: Mutex<Option<Instant>> = Mutex::new(None);
 const KEYRING_SERVICE: &str = "ha-desk";
 const KEYRING_USER: &str = "ha-token";
 
+// Komut paleti penceresi boyutu (mantıksal piksel)
+const PALETTE_W: f64 = 640.0;
+const PALETTE_H: f64 = 440.0;
+
 // Popup'ı imlecin bulunduğu monitörün sağ altına koyar (görev çubuğunun üstü)
 fn place_on_cursor_monitor(win: &WebviewWindow) {
     let (Ok(cur), Ok(size), Ok(cur_scale), Ok(monitors)) = (
@@ -56,6 +60,42 @@ fn show_popup(win: &WebviewWindow, from_tray: bool) {
             place_on_cursor_monitor(&w2);
         });
     }
+    let _ = win.show();
+    let _ = win.set_focus();
+}
+
+// Paleti imlecin bulunduğu monitörün üst-orta kısmına koyar
+fn place_palette(win: &WebviewWindow) {
+    let (Ok(cur), Ok(monitors)) = (win.cursor_position(), win.available_monitors()) else {
+        return;
+    };
+    let hit = monitors.iter().find(|m| {
+        let (p, s) = (m.position(), m.size());
+        cur.x >= p.x as f64
+            && cur.x < p.x as f64 + s.width as f64
+            && cur.y >= p.y as f64
+            && cur.y < p.y as f64 + s.height as f64
+    });
+    let Some(m) = hit.or(monitors.first()) else {
+        return;
+    };
+    let (p, s, scale) = (m.position(), m.size(), m.scale_factor());
+    let w = (PALETTE_W * scale).round() as i32;
+    let h = (PALETTE_H * scale).round() as i32;
+    let x = p.x + (s.width as i32 - w) / 2;
+    let y = p.y + (s.height as f64 * 0.16) as i32;
+    let _ = win.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
+    let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+}
+
+fn show_palette(win: &WebviewWindow) {
+    place_palette(win);
+    // Monitör ölçeği değişince Windows pencereyi yeniden boyutlandırır; bir kez daha yerleştir
+    let w2 = win.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(90));
+        place_palette(&w2);
+    });
     let _ = win.show();
     let _ = win.set_focus();
 }
@@ -115,7 +155,7 @@ fn delete_token() -> Result<(), String> {
     }
 }
 
-// ---------- Popup ----------
+// ---------- Popup ve palet ----------
 
 #[tauri::command]
 fn toggle_popup(app: AppHandle) {
@@ -125,6 +165,24 @@ fn toggle_popup(app: AppHandle) {
         } else {
             show_popup(&w, false);
         }
+    }
+}
+
+#[tauri::command]
+fn toggle_palette(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("palette") {
+        if w.is_visible().unwrap_or(false) {
+            let _ = w.hide();
+        } else {
+            show_palette(&w);
+        }
+    }
+}
+
+#[tauri::command]
+fn hide_palette(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("palette") {
+        let _ = w.hide();
     }
 }
 
@@ -149,11 +207,15 @@ pub fn run() {
             get_token,
             set_token,
             delete_token,
-            toggle_popup
+            toggle_popup,
+            toggle_palette,
+            hide_palette
         ])
         .on_window_event(|window, event| match event {
             WindowEvent::Focused(false) => {
-                *LAST_HIDE.lock().unwrap() = Some(Instant::now());
+                if window.label() == "main" {
+                    *LAST_HIDE.lock().unwrap() = Some(Instant::now());
+                }
                 let _ = window.hide();
             }
             WindowEvent::CloseRequested { api, .. } => {
@@ -163,6 +225,23 @@ pub fn run() {
             _ => {}
         })
         .setup(|app| {
+            // Komut paleti: açılışta gizli oluşturulur, kısayolla anında görünür
+            tauri::WebviewWindowBuilder::new(
+                app,
+                "palette",
+                tauri::WebviewUrl::App("palette".into()),
+            )
+            .title("HA Palet")
+            .inner_size(PALETTE_W, PALETTE_H)
+            .decorations(false)
+            .transparent(true)
+            .shadow(false)
+            .resizable(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .visible(false)
+            .build()?;
+
             let open = MenuItem::with_id(app, "open", "Aç", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Çıkış", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;

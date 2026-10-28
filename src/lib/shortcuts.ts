@@ -8,7 +8,7 @@ import { kindOf, domainOf, pctOf, setPct, press } from "./tileKind";
 
 // ---------- arayüz için yardımcılar ----------
 
-export type ActionKind = "toggle" | "on" | "off" | "run" | "inc" | "dec" | "set" | "popup";
+export type ActionKind = "toggle" | "on" | "off" | "run" | "inc" | "dec" | "set" | "popup" | "palette";
 
 export const ACTION_OPTIONS: [ActionKind, string][] = [
   ["toggle", "Aç/Kapat"],
@@ -19,12 +19,13 @@ export const ACTION_OPTIONS: [ActionKind, string][] = [
   ["dec", "Azalt (−)"],
   ["set", "Değer ata"],
   ["popup", "Popup'ı aç/kapat"],
+  ["palette", "Komut paletini aç/kapat"],
 ];
 
 export const actionKind = (a: Action): ActionKind =>
   a.type === "adjust" ? (a.delta >= 0 ? "inc" : "dec") : a.type;
 
-export const needsEntity = (a: Action) => a.type !== "popup";
+export const needsEntity = (a: Action) => a.type !== "popup" && a.type !== "palette";
 export const entityOf = (a: Action) => ("entity_id" in a ? a.entity_id : "");
 export const stepOf = (a: Action) => (a.type === "adjust" ? Math.abs(a.delta) : 10);
 export const valueOf = (a: Action) => (a.type === "set" ? a.value : 50);
@@ -64,7 +65,8 @@ function withKind(a: Action, k: ActionKind): Action {
   const ent = entityOf(a);
   switch (k) {
     case "popup":
-      return { type: "popup" };
+    case "palette":
+      return { type: k };
     case "inc":
       return { type: "adjust", entity_id: ent, delta: stepOf(a) };
     case "dec":
@@ -117,6 +119,7 @@ const baseOf = (id: string, current: number) => {
 
 async function runAction(a: Action): Promise<unknown> {
   if (a.type === "popup") return invoke("toggle_popup");
+  if (a.type === "palette") return invoke("toggle_palette");
   if (get(status) !== "connected") return;
 
   const e = get(entities)[a.entity_id];

@@ -290,6 +290,10 @@
               <input type="checkbox" checked={autostart} on:change={toggleAutostart} />
               Windows ile başlat (tray'de gizli açılır)
             </label>
+            <label class="check">
+              <input type="checkbox" bind:checked={$settings.palette.sensors} />
+              Komut paletinde sensörleri de ara (grafik için → tuşu)
+            </label>
             {#if $lastError}<p class="err">{$lastError}</p>{/if}
           {:else if tab === "kisayol"}
             <datalist id="ent-list">
