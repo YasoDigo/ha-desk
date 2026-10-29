@@ -1,8 +1,11 @@
 <script lang="ts">
   import { ha } from "$lib/ha";
   import type { HaEntity } from "$lib/ha";
-  import { kindOf, domainOf, pctOf, setPct, press, hasDetail } from "$lib/tileKind";
+  import {
+    kindOf, domainOf, pctOf, setPct, press, hasDetail, activeOf, describe, EXTRA_KINDS,
+  } from "$lib/tileKind";
   import LightPanel from "$lib/LightPanel.svelte";
+  import ExtraControls from "$lib/ExtraControls.svelte";
 
   export let entityId: string;
   export let entity: HaEntity | undefined;
@@ -20,7 +23,8 @@
 
   $: kind = entity ? kindOf(entity) : null;
   $: name = entity?.attributes.friendly_name ?? entityId;
-  $: on = entity?.state === "on";
+  $: on = entity ? activeOf(entity) : false;
+  $: isExtra = kind !== null && EXTRA_KINDS.includes(kind);
   $: canDetail = entity ? hasDetail(entity) : false;
   $: unavailable = entity?.state === "unavailable";
   $: unit = entity?.attributes.unit_of_measurement ?? "";
@@ -55,9 +59,11 @@
         ? on ? "Açık" : "Kapalı"
         : kind === "button"
           ? editing ? "Çalıştır" : ""
-          : kind === "sensor"
-            ? `${entity.state} ${unit}`
-            : "";
+          : isExtra
+            ? describe(entity)
+            : kind === "sensor"
+              ? `${entity.state} ${unit}`
+              : "";
 
   function run(p: Promise<unknown>) {
     p.catch((e) => console.error(e));
@@ -163,6 +169,8 @@
           <option value={o} selected={o === entity.state}>{o}</option>
         {/each}
       </select>
+    {:else if isExtra}
+      <ExtraControls {entityId} {entity} disabled={editing} />
     {/if}
   {/if}
 
@@ -207,7 +215,13 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .sub { font-size: 11px; opacity: 0.65; }
+  .sub {
+    font-size: 11px;
+    opacity: 0.65;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   .srow { display: flex; align-items: center; gap: 8px; }
   .srow input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }

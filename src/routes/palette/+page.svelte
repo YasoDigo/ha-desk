@@ -5,7 +5,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { ha, status, entities } from "$lib/ha";
   import type { HaEntity } from "$lib/ha";
-  import { domainOf, kindOf, hasDetail, press } from "$lib/tileKind";
+  import { domainOf, kindOf, hasDetail, press, HVAC_TR } from "$lib/tileKind";
   import Tile from "$lib/Tile.svelte";
   import SensorDetail from "$lib/SensorDetail.svelte";
 
@@ -20,7 +20,10 @@
     button: { label: "Buton", icon: "🔲" },
     input_button: { label: "Buton", icon: "🔲" },
     fan: { label: "Fan", icon: "🌀" },
-    cover: { label: "Panjur", icon: "🪟" },
+    cover: { label: "Perde", icon: "🪟" },
+    lock: { label: "Kilit", icon: "🔒" },
+    climate: { label: "Klima", icon: "🌡️" },
+    media_player: { label: "Medya", icon: "🎵" },
     number: { label: "Sayı", icon: "🎚️" },
     input_number: { label: "Sayı", icon: "🎚️" },
     select: { label: "Seçim", icon: "📋" },
@@ -34,6 +37,8 @@
   const META = { ...DOMAINS, ...SENSOR_DOMAINS };
   // Enter'a basınca "çalıştır" olan türler (diğerleri aç/kapat yapılır)
   const BUTTONY = new Set(["scene", "script", "automation", "button", "input_button"]);
+  // Enter'a basınca doğrudan ayrıntı paneli açılan türler (kilit gibi tek tıkla yapılmaması gerekenler)
+  const DETAIL_ONLY = new Set(["number", "select", "lock", "climate", "media"]);
   const RECENT_KEY = "ha_desk_palette_recent";
 
   type Item = {
@@ -60,7 +65,7 @@
     s
       .toLocaleLowerCase("tr")
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[̀-ͯ]/g, "")
       .replace(/ı/g, "i");
 
   function loadRecent(): string[] {
@@ -144,7 +149,7 @@
   function hasMore(e: HaEntity): boolean {
     if (isSensorDomain(e)) return domainOf(e.entity_id) === "sensor" && isNumeric(e);
     const k = kindOf(e);
-    return k === "dimmer" || k === "number" || k === "select" || hasDetail(e);
+    return k === "dimmer" || DETAIL_ONLY.has(k) || k === "cover" || hasDetail(e);
   }
 
   function stateLabel(it: Item): string {
@@ -154,6 +159,10 @@
     if (d === "automation") return state === "on" ? "Etkin" : "Devre dışı";
     if (BUTTONY.has(d)) return "";
     if (d === "binary_sensor") return state === "on" ? "Aktif" : state === "off" ? "Pasif" : state;
+    if (d === "lock") return state === "locked" ? "Kilitli" : state === "unlocked" ? "Kilit açık" : state;
+    if (d === "cover") return state === "open" ? "Açık" : state === "closed" ? "Kapalı" : state === "opening" ? "Açılıyor" : state === "closing" ? "Kapanıyor" : state;
+    if (d === "climate") return state === "off" ? "Kapalı" : (HVAC_TR[state] ?? state);
+    if (d === "media_player") return state === "playing" ? "Çalıyor" : state === "paused" ? "Duraklatıldı" : state === "off" ? "Kapalı" : state === "idle" ? "Boşta" : state;
     if (state === "on") return "Açık";
     if (state === "off") return "Kapalı";
     const unit = it.e.attributes.unit_of_measurement;
@@ -174,9 +183,9 @@
       return;
     }
     remember(id);
-    // Sayı ve seçim varlıklarında aç/kapat anlamsız: ayrıntı paneli açılır
+    // Sayı, seçim, kilit, klima ve medyada tek tıkla aç/kapat uygun değil: ayrıntı paneli açılır
     const k = kindOf(e);
-    if (k === "number" || k === "select") {
+    if (DETAIL_ONLY.has(k)) {
       openDetail(e);
       return;
     }
@@ -307,7 +316,8 @@
     const k = kindOf(it.e);
     const more = hasMore(it.e) ? " · → ayrıntı" : "";
     if (isSensorDomain(it.e)) return hasMore(it.e) ? "Enter grafik · Esc kapat" : "Salt okunur · Esc kapat";
-    if (k === "number" || k === "select") return "Enter ayrıntı · Esc kapat";
+    if (DETAIL_ONLY.has(k)) return "Enter ayrıntı · Esc kapat";
+    if (k === "cover") return `Enter aç/kapat · → ayrıntı · Esc kapat`;
     if (d === "automation") return "Enter tetikle · Shift+Enter etkin/devre dışı · Esc kapat";
     if (BUTTONY.has(d)) return "Enter çalıştır · Esc kapat";
     return `Enter aç/kapat${more} · Esc kapat`;

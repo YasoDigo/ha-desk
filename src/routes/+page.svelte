@@ -19,13 +19,15 @@
   import { domainOf } from "$lib/tileKind";
   import Tile from "$lib/Tile.svelte";
   import Board from "$lib/Board.svelte";
+  import NotifyPanel from "$lib/NotifyPanel.svelte";
+  import { startNotifications } from "$lib/notify";
 
   const SENSOR_DOMAINS = ["sensor", "binary_sensor"];
 
   let ready = false;
   let view: "tiles" | "settings" = "tiles";
   let section: "tiles" | "sensors" = "tiles";
-  let tab: "baglanti" | "genel" | "kisayol" | "yedek" = "baglanti";
+  let tab: "baglanti" | "genel" | "kisayol" | "bildirim" | "yedek" = "baglanti";
   let editing = false;
   let picking = false;
   let pinned = false;
@@ -56,6 +58,7 @@
     await initConfig();
     loadDrafts();
     startShortcuts();
+    startNotifications();
     try { autostart = await isEnabled(); } catch {}
     const t = (await invoke("get_token")) as string | null;
     hasToken = !!t;
@@ -127,6 +130,18 @@
   function togglePin() {
     pinned = !pinned;
     invoke("set_pinned", { pinned }).catch((e) => console.error(e));
+  }
+
+  // Popup odağı kaybedince (sabit değilse) kapanır; bir sonraki açılışta ana ekran gelsin.
+  // İlk kurulumda (token/adres yokken) ayarlarda kalır.
+  function onWindowBlur() {
+    stopRecord();
+    if (!pinned && view === "settings" && hasToken && urlList().length) {
+      view = "tiles";
+      editing = false;
+      picking = false;
+      detailId = null;
+    }
   }
 
   // ---- kısayol tuşu kaydı ----
@@ -232,7 +247,7 @@
     : [];
 </script>
 
-<svelte:window on:keydown|capture={onKeyDown} on:blur={stopRecord} />
+<svelte:window on:keydown|capture={onKeyDown} on:blur={onWindowBlur} />
 
 <main>
   <header data-tauri-drag-region>
@@ -269,6 +284,7 @@
           <button class:sel={tab === "baglanti"} on:click={() => setTab("baglanti")}>Bağlantı</button>
           <button class:sel={tab === "genel"} on:click={() => setTab("genel")}>Genel</button>
           <button class:sel={tab === "kisayol"} on:click={() => setTab("kisayol")}>Kısayollar</button>
+          <button class:sel={tab === "bildirim"} on:click={() => setTab("bildirim")}>Bildirimler</button>
           <button class:sel={tab === "yedek"} on:click={() => setTab("yedek")}>Yedek</button>
         </nav>
 
@@ -368,6 +384,8 @@
             {/each}
 
             <button on:click={addShortcut}>+ Kısayol ekle</button>
+          {:else if tab === "bildirim"}
+            <NotifyPanel />
           {:else}
             <textarea bind:value={backupText} placeholder="Yedek JSON"></textarea>
             <div class="row">
@@ -553,7 +571,7 @@
 
   .settings { display: flex; flex-direction: column; gap: 10px; height: 100%; }
   .tabs { display: flex; gap: 4px; padding: 3px; background: var(--card); border-radius: 10px; }
-  .tabs button { flex: 1; border: none; background: transparent; padding: 6px 4px; border-radius: 8px; font-size: 12px; }
+  .tabs button { flex: 1; border: none; background: transparent; padding: 6px 2px; border-radius: 8px; font-size: 12px; }
   .tabs button.sel { background: var(--accent); color: #1a1a1a; font-weight: 600; }
   .pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
   .pane label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }

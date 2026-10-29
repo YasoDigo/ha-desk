@@ -206,6 +206,15 @@ class HaClient {
     }
   }
 
+  // Durum değişince (eski ve yeni durumla) çağrılır; bildirim kuralları buradan beslenir
+  onChange:
+    | ((
+        id: string,
+        oldS: Pick<HaEntity, "state" | "attributes"> | null,
+        newS: Pick<HaEntity, "state" | "attributes"> | null
+      ) => void)
+    | null = null;
+
   private onEvent(ev: any) {
     if (ev?.event_type === "entity_registry_updated") {
       const d = ev.data;
@@ -215,7 +224,7 @@ class HaClient {
       return;
     }
     if (ev?.event_type !== "state_changed") return;
-    const { entity_id, new_state } = ev.data;
+    const { entity_id, new_state, old_state } = ev.data;
     entities.update((all) => {
       if (new_state) {
         all[entity_id] = { entity_id, state: new_state.state, attributes: new_state.attributes };
@@ -224,6 +233,13 @@ class HaClient {
       }
       return all;
     });
+    const snap = (x: any) =>
+      x ? { state: String(x.state), attributes: (x.attributes ?? {}) as Record<string, any> } : null;
+    try {
+      this.onChange?.(entity_id, snap(old_state), snap(new_state));
+    } catch (e) {
+      console.error("onChange hatası", e);
+    }
   }
 }
 

@@ -14,10 +14,28 @@ export type Action =
   | { type: "palette" };
 export type Shortcut = { id: string; keys: string; action: Action };
 
+// Bildirim kuralı: "şu varlık şu duruma gelince (isteğe bağlı: şu kadar sürerse) bildirim gönder"
+export type RuleWhen =
+  | { type: "state"; to: string } // durum şuna dönünce
+  | { type: "change" } // durum her değiştiğinde
+  | { type: "above"; value: number } // sayısal değer şunun üstüne çıkınca
+  | { type: "below"; value: number }; // sayısal değer şunun altına inince
+export type Rule = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  entity_id: string;
+  when: RuleWhen;
+  forSec: number; // 0: hemen; >0: koşul bu kadar saniye sürerse
+  title: string; // {name} {state} {old} {unit} kullanılabilir
+  body: string;
+};
+
 export type Settings = {
   connection: { primaryUrl: string; fallbackUrl: string };
   appearance: { theme: "dark" | "light" | "system"; accent: string };
   palette: { sensors: boolean }; // komut paletinde sensörler de aransın mı
+  notifications: { enabled: boolean }; // tüm bildirim kuralları için ana anahtar
 };
 
 const VERSION = 1; // ileride format değişirse parse() içinde eski sürümleri buradan taşırız
@@ -26,6 +44,7 @@ const defaults: Settings = {
   connection: { primaryUrl: "", fallbackUrl: "" },
   appearance: { theme: "dark", accent: "#f0b429" },
   palette: { sensors: false },
+  notifications: { enabled: true },
 };
 
 const newGroup = (title = ""): Group => ({ id: crypto.randomUUID(), title, tiles: [], master: [] });
@@ -38,6 +57,7 @@ export const usedEntities = derived(groups, idsOf);
 export const usedSensors = derived(sensorGroups, idsOf);
 
 export const shortcuts = writable<Shortcut[]>([]);
+export const rules = writable<Rule[]>([]);
 export const settings = writable<Settings>(JSON.parse(JSON.stringify(defaults)));
 
 // ---------- okuma / doğrulama ----------
@@ -109,7 +129,40 @@ function cleanShortcuts(list: any): Shortcut[] {
   return out;
 }
 
-function parse(text: string): { s: Settings; g: Group[]; sg: Group[]; sc: Shortcut[] } {
+function cleanRules(list: any): Rule[] {
+  if (!Array.isArray(list)) return [];
+  const out: Rule[] = [];
+  for (const x of list) {
+    if (!x || typeof x !== "object" || typeof x.entity_id !== "string") continue;
+    const w = x.when ?? {};
+    let when: RuleWhen;
+    if (w.type === "state") when = { type: "state", to: String(w.to ?? "") };
+    else if (w.type === "change") when = { type: "change" };
+    else if ((w.type === "above" || w.type === "below") && Number.isFinite(Number(w.value)))
+      when = { type: w.type, value: Number(w.value) };
+    else continue;
+    const f = Number(x.forSec);
+    out.push({
+      id: typeof x.id === "string" && x.id ? x.id : crypto.randomUUID(),
+      name: typeof x.name === "string" ? x.name : "",
+      enabled: x.enabled !== false,
+      entity_id: x.entity_id,
+      when,
+      forSec: Number.isFinite(f) && f > 0 ? Math.min(Math.round(f), 86400) : 0,
+      title: typeof x.title === "string" ? x.title : "{name}",
+      body: typeof x.body === "string" ? x.body : "{name}: {state}",
+    });
+  }
+  return out;
+}
+
+function parse(text: string): {
+  s: Settings;
+  g: Group[];
+  sg: Group[];
+  sc: Shortcut[];
+  r: Rule[];
+} {
   const raw = JSON.parse(text);
   if (!raw || typeof raw !== "object") throw new Error("Geçersiz yedek");
   const c = raw.connection ?? {};
@@ -124,12 +177,14 @@ function parse(text: string): { s: Settings; g: Group[]; sg: Group[]; sc: Shortc
       accent: /^#[0-9a-f]{6}$/i.test(a.accent) ? a.accent : defaults.appearance.accent,
     },
     palette: { sensors: raw.palette?.sensors === true },
+    notifications: { enabled: raw.notifications?.enabled !== false },
   };
   return {
     s,
     g: cleanGroups(raw),
     sg: cleanGroups({ groups: raw.sensors }),
     sc: cleanShortcuts(raw.shortcuts),
+    r: cleanRules(raw.rules),
   };
 }
 
@@ -145,6 +200,7 @@ function snapshot() {
     groups: get(groups),
     sensors: get(sensorGroups),
     shortcuts: get(shortcuts),
+    rules: get(rules),
   };
 }
 
@@ -165,6 +221,7 @@ function scheduleSave() {
 groups.subscribe(scheduleSave);
 sensorGroups.subscribe(scheduleSave);
 shortcuts.subscribe(scheduleSave);
+rules.subscribe(scheduleSave);
 settings.subscribe(scheduleSave);
 
 // ---------- ilk yükleme ----------
@@ -194,11 +251,12 @@ export async function initConfig() {
   const text = (await invoke("load_config")) as string | null;
   if (text) {
     try {
-      const { s, g, sg, sc } = parse(text);
+      const { s, g, sg, sc, r } = parse(text);
       settings.set(s);
       groups.set(g);
       sensorGroups.set(sg);
       shortcuts.set(sc);
+      rules.set(r);
     } catch (e) {
       console.error("config.json okunamadı", e);
       try { localStorage.setItem("ha_desk_corrupt_backup", text); } catch {}
@@ -218,11 +276,12 @@ export function exportJson(): string {
 }
 
 export function importJson(text: string) {
-  const { s, g, sg, sc } = parse(text);
+  const { s, g, sg, sc, r } = parse(text);
   settings.set(s);
   groups.set(g.length ? g : [newGroup()]);
   sensorGroups.set(sg.length ? sg : [newGroup()]);
   shortcuts.set(sc);
+  rules.set(r);
 }
 
 // ---------- kutucuk ve grup işlemleri (kutucuklar ve sensörler için ortak) ----------
@@ -305,7 +364,7 @@ export type BoardOps = ReturnType<typeof makeOps>;
 export const tileOps = makeOps(groups);
 export const sensorOps = makeOps(sensorGroups);
 
-// HA'da entity_id değişince kutucuklar, sensörler ve kısayollar otomatik yeni id'ye geçer
+// HA'da entity_id değişince kutucuklar, sensörler, kısayollar ve bildirim kuralları otomatik yeni id'ye geçer
 const renameIn = (store: Writable<Group[]>, oldId: string, newId: string) =>
   store.update((gs) =>
     gs.map((g) => ({
@@ -324,6 +383,7 @@ ha.onRename = (oldId, newId) => {
         : s
     )
   );
+  rules.update((l) => l.map((r) => (r.entity_id === oldId ? { ...r, entity_id: newId } : r)));
 };
 
 // ---------- görünüm ----------
