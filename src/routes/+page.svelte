@@ -21,6 +21,7 @@
   import Board from "$lib/Board.svelte";
   import NotifyPanel from "$lib/NotifyPanel.svelte";
   import { startNotifications } from "$lib/notify";
+  import { t } from "$lib/i18n";
 
   const SENSOR_DOMAINS = ["sensor", "binary_sensor"];
 
@@ -281,52 +282,59 @@
     {:else if view === "settings"}
       <section class="settings">
         <nav class="tabs">
-          <button class:sel={tab === "baglanti"} on:click={() => setTab("baglanti")}>Bağlantı</button>
-          <button class:sel={tab === "genel"} on:click={() => setTab("genel")}>Genel</button>
-          <button class:sel={tab === "kisayol"} on:click={() => setTab("kisayol")}>Kısayollar</button>
-          <button class:sel={tab === "bildirim"} on:click={() => setTab("bildirim")}>Bildirimler</button>
-          <button class:sel={tab === "yedek"} on:click={() => setTab("yedek")}>Yedek</button>
+          <button class:sel={tab === "baglanti"} on:click={() => setTab("baglanti")}>{$t("tab.connection")}</button>
+          <button class:sel={tab === "genel"} on:click={() => setTab("genel")}>{$t("tab.general")}</button>
+          <button class:sel={tab === "kisayol"} on:click={() => setTab("kisayol")}>{$t("tab.shortcuts")}</button>
+          <button class:sel={tab === "bildirim"} on:click={() => setTab("bildirim")}>{$t("tab.notifications")}</button>
+          <button class:sel={tab === "yedek"} on:click={() => setTab("yedek")}>{$t("tab.backup")}</button>
         </nav>
 
         <div class="pane">
           {#if tab === "baglanti"}
-            <label>Birincil adres
+            <label>{$t("conn.primary")}
               <input bind:value={primary} placeholder="http://homeassistant.local:8123" />
             </label>
-            <label>Yedek adres (isteğe bağlı)
-              <input bind:value={fallback} placeholder="Birincil açılmazsa denenir" />
+            <label>{$t("conn.fallback")}
+              <input bind:value={fallback} placeholder={$t("conn.fallbackPh")} />
             </label>
-            <label>Erişim token'ı
+            <label>{$t("conn.token")}
               <input
                 type="password"
                 bind:value={tokenInput}
-                placeholder={hasToken ? "Kayıtlı. Değiştirmek için yaz" : "Long-lived access token"}
+                placeholder={hasToken ? $t("conn.tokenSaved") : $t("conn.tokenPh")}
               />
             </label>
             <div class="row">
-              <button class="primary" on:click={saveConnection}>Kaydet ve bağlan</button>
-              {#if hasToken}<button on:click={forgetToken}>Token'ı sil</button>{/if}
+              <button class="primary" on:click={saveConnection}>{$t("conn.saveConnect")}</button>
+              {#if hasToken}<button on:click={forgetToken}>{$t("conn.deleteToken")}</button>{/if}
             </div>
-            <p class="state">Durum: {$status}{#if $activeUrl} · {$activeUrl}{/if}</p>
+            <p class="state">{$t("conn.status", { status: $status })}{#if $activeUrl} · {$activeUrl}{/if}</p>
             {#if $lastError}<p class="err">{$lastError}</p>{/if}
           {:else if tab === "genel"}
-            <label>Tema
+            <label>{$t("general.theme")}
               <select bind:value={$settings.appearance.theme}>
-                <option value="dark">Koyu</option>
-                <option value="light">Açık</option>
-                <option value="system">Sistem</option>
+                <option value="dark">{$t("theme.dark")}</option>
+                <option value="light">{$t("theme.light")}</option>
+                <option value="system">{$t("theme.system")}</option>
               </select>
             </label>
-            <label>Vurgu rengi
+            <label>{$t("general.accent")}
               <input type="color" class="color" bind:value={$settings.appearance.accent} />
+            </label>
+            <label>{$t("general.language")}
+              <select bind:value={$settings.language}>
+                <option value="auto">{$t("lang.auto")}</option>
+                <option value="tr">Türkçe</option>
+                <option value="en">English</option>
+              </select>
             </label>
             <label class="check">
               <input type="checkbox" checked={autostart} on:change={toggleAutostart} />
-              Windows ile başlat (tray'de gizli açılır)
+              {$t("general.autostart")}
             </label>
             <label class="check">
               <input type="checkbox" bind:checked={$settings.palette.sensors} />
-              Komut paletinde sensörleri de ara (grafik için → tuşu)
+              {$t("general.paletteSensors")}
             </label>
             {#if $lastError}<p class="err">{$lastError}</p>{/if}
           {:else if tab === "kisayol"}

@@ -31,7 +31,10 @@ export type Rule = {
   body: string;
 };
 
+export type LangSetting = "auto" | "tr" | "en";
+
 export type Settings = {
+  language: LangSetting; // "auto": sistem diline göre
   connection: { primaryUrl: string; fallbackUrl: string };
   appearance: { theme: "dark" | "light" | "system"; accent: string };
   palette: { sensors: boolean }; // komut paletinde sensörler de aransın mı
@@ -41,6 +44,7 @@ export type Settings = {
 const VERSION = 1; // ileride format değişirse parse() içinde eski sürümleri buradan taşırız
 
 const defaults: Settings = {
+  language: "auto",
   connection: { primaryUrl: "", fallbackUrl: "" },
   appearance: { theme: "dark", accent: "#f0b429" },
   palette: { sensors: false },
@@ -168,6 +172,7 @@ function parse(text: string): {
   const c = raw.connection ?? {};
   const a = raw.appearance ?? {};
   const s: Settings = {
+    language: ["auto", "tr", "en"].includes(raw.language) ? raw.language : "auto",
     connection: {
       primaryUrl: String(c.primaryUrl ?? ""),
       fallbackUrl: String(c.fallbackUrl ?? ""),
