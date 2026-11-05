@@ -1,5 +1,7 @@
 import { ha } from "./ha";
 import type { HaEntity } from "./ha";
+import { hasKey } from "./i18n/core";
+import type { TFn } from "./i18n/core";
 
 export type Kind =
   | "toggle"
@@ -101,43 +103,22 @@ export function hasDetail(e: HaEntity): boolean {
 
 // ---------- perde, kilit, klima, medya oynatıcı ----------
 
-export const HVAC_TR: Record<string, string> = {
-  off: "Kapalı",
-  heat: "Isıt",
-  cool: "Soğut",
-  auto: "Oto",
-  heat_cool: "Isıt/Soğut",
-  dry: "Nem al",
-  fan_only: "Fan",
-};
+// "<önek>.<değer>" sözlükte varsa çevirir, yoksa değeri olduğu gibi döner
+function lookup(prefix: string, v: string, t: TFn): string {
+  const k = `${prefix}.${v}`;
+  return hasKey(k) ? t(k) : v;
+}
+export const hvacLabel = (mode: string, t: TFn) => lookup("hvac", mode, t);
+export const stateText = (s: string, t: TFn) => lookup("state", s, t);
 
-const STATE_TR: Record<string, string> = {
-  open: "Açık",
-  closed: "Kapalı",
-  opening: "Açılıyor",
-  closing: "Kapanıyor",
-  locked: "Kilitli",
-  unlocked: "Kilit açık",
-  locking: "Kilitleniyor",
-  unlocking: "Kilit açılıyor",
-  jammed: "Sıkıştı",
-  playing: "Çalıyor",
-  paused: "Duraklatıldı",
-  idle: "Boşta",
-  standby: "Beklemede",
-  buffering: "Yükleniyor",
-  on: "Açık",
-  off: "Kapalı",
-};
-
-const ACTION_TR: Record<string, string> = {
-  heating: "Isıtıyor",
-  cooling: "Soğutuyor",
-  idle: "Beklemede",
-  off: "Kapalı",
-  drying: "Nem alıyor",
-  fan: "Fan çalışıyor",
-};
+// binary_sensor: device_class -> [açıkken metin, kapalıyken metin, açıkken uyarı mı?]
+const BIN_ALERT = new Set(["lock", "moisture", "smoke", "gas", "problem", "safety", "tamper", "battery"]);
+export function binInfo(deviceClass: unknown, t: TFn): [string, string, boolean] {
+  const c = typeof deviceClass === "string" ? deviceClass : "";
+  const known = hasKey(`bin.${c}.on`);
+  const k = known ? c : "default";
+  return [lookup("bin", `${k}.on`, t), lookup("bin", `${k}.off`, t), known && BIN_ALERT.has(c)];
+}
 
 const num1 = (n: number) => String(Number(n.toFixed(1)));
 
@@ -159,22 +140,25 @@ export function activeOf(e: HaEntity): boolean {
 }
 
 // Kutucuğun alt satırı (durum özeti)
-export function describe(e: HaEntity): string {
+export function describe(e: HaEntity, t: TFn): string {
   const a = e.attributes;
   const s = e.state;
-  if (s === "unavailable") return "Kullanılamıyor";
+  if (s === "unavailable") return t("state.unavailable");
   switch (kindOf(e)) {
     case "cover": {
-      const base = STATE_TR[s] ?? s;
+      const base = stateText(s, t);
       const p = a.current_position;
       return typeof p === "number" && s !== "closed" ? `${base} · %${Math.round(p)}` : base;
     }
     case "lock":
-      return STATE_TR[s] ?? s;
+      return stateText(s, t);
     case "climate": {
-      const head = (a.hvac_action && ACTION_TR[a.hvac_action]) || HVAC_TR[s] || s;
+      const act = a.hvac_action ? String(a.hvac_action) : "";
+      const head = (act && hasKey(`hvacAct.${act}`) ? lookup("hvacAct", act, t) : "") || hvacLabel(s, t);
       const cur =
-        typeof a.current_temperature === "number" ? ` · şu an ${num1(a.current_temperature)}°` : "";
+        typeof a.current_temperature === "number"
+          ? t("climate.now", { t: num1(a.current_temperature) })
+          : "";
       return head + cur;
     }
     case "media": {
@@ -182,8 +166,8 @@ export function describe(e: HaEntity): string {
       const artist = a.media_artist ? String(a.media_artist) : "";
       const track = title ? (artist ? `${artist} – ${title}` : title) : "";
       if (s === "playing" && track) return track;
-      if (s === "paused" && track) return `Duraklatıldı · ${track}`;
-      return STATE_TR[s] ?? s;
+      if (s === "paused" && track) return t("media.pausedTrack", { track });
+      return stateText(s, t);
     }
     default:
       return s;

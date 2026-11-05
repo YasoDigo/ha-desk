@@ -5,6 +5,7 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import { ha, entities, lastError } from "./ha";
+import { tn } from "./i18n/core";
 import type { HaEntity } from "./ha";
 import { rules, settings } from "./config";
 import type { Rule, RuleWhen } from "./config";
@@ -21,7 +22,7 @@ const lastFired = new Map<string, number>();
 
 export const newRule = (): Rule => ({
   id: crypto.randomUUID(),
-  name: "Yeni kural",
+  name: tn("rule.new"),
   enabled: true,
   entity_id: "",
   when: { type: "state", to: "on" },
@@ -36,19 +37,19 @@ export function addRule(): string {
   rules.update((l) => [...l, r]);
   return r.id;
 }
-
 export const removeRule = (id: string) => rules.update((l) => l.filter((r) => r.id !== id));
 export const patchRule = (id: string, patch: Partial<Rule>) =>
   rules.update((l) => l.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
 export function setWhenType(id: string, type: RuleWhen["type"]) {
+  const stateless = type === "change" || type === "triggered";
   const when: RuleWhen =
     type === "state"
       ? { type: "state", to: "on" }
-      : type === "change"
-        ? { type: "change" }
+      : type === "change" || type === "triggered"
+        ? { type }
         : { type, value: 0 };
-  patchRule(id, type === "change" ? { when, forSec: 0 } : { when });
+  patchRule(id, stateless ? { when, forSec: 0 } : { when });
 }
 
 // ---------- bildirim gönderme ----------
@@ -61,7 +62,7 @@ export async function notify(title: string, body: string) {
     if (ok) sendNotification({ title: title || "HA Desk", body, sound: "Default" });
   } catch (e) {
     console.error("Bildirim gönderilemedi", e);
-    lastError.set("Bildirim gönderilemedi: " + String(e));
+    lastError.set(tn("notify.sendFail", { err: String(e) }));
   }
 }
 
@@ -87,7 +88,10 @@ function fire(r: Rule, cur: Snap, old: Snap | null) {
 export function testRule(r: Rule) {
   const cur = get(entities)[r.entity_id];
   if (!cur) {
-    notify("HA Desk test", "Bu varlık HA'da bulunamadı: " + (r.entity_id || "(seçilmedi)"));
+    notify(
+      tn("notify.testTitle"),
+      tn("notify.notFound", { id: r.entity_id || tn("notify.noEntity") })
+    );
     return;
   }
   notify(render(r.title, r, cur, cur), render(r.body, r, cur, cur));
@@ -124,6 +128,14 @@ function handle(id: string, oldS: Snap | null, newS: Snap | null) {
   if (!get(settings).notifications.enabled) return;
   for (const r of get(rules)) {
     if (!r.enabled || r.entity_id !== id || !newS) continue;
+
+    if (r.when.type === "triggered") {
+      // Otomasyon çalışınca durumu değişmez; last_triggered özelliği değişir
+      const now = newS.attributes.last_triggered;
+      if (!oldS || !now || now === oldS.attributes.last_triggered) continue;
+      fire(r, newS, oldS);
+      continue;
+    }
 
     if (r.when.type === "change") {
       if (!oldS || newS.state === oldS.state) continue; // sadece özellik değişimi

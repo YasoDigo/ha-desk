@@ -2,6 +2,7 @@ import { derived, get, writable } from "svelte/store";
 import type { Writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import { ha } from "./ha";
+import { tn } from "./i18n/core";
 
 export type Tile = { id: string; entity_id: string; span?: 1 | 2 };
 export type Group = { id: string; title: string; tiles: Tile[]; master: string[] };
@@ -19,7 +20,8 @@ export type RuleWhen =
   | { type: "state"; to: string } // durum şuna dönünce
   | { type: "change" } // durum her değiştiğinde
   | { type: "above"; value: number } // sayısal değer şunun üstüne çıkınca
-  | { type: "below"; value: number }; // sayısal değer şunun altına inince
+  | { type: "below"; value: number } // sayısal değer şunun altına inince
+  | { type: "triggered" }; // otomasyon/script çalıştırılınca (last_triggered değişince)
 export type Rule = {
   id: string;
   name: string;
@@ -38,8 +40,15 @@ export type Settings = {
   connection: { primaryUrl: string; fallbackUrl: string };
   appearance: { theme: "dark" | "light" | "system"; accent: string };
   palette: { sensors: boolean }; // komut paletinde sensörler de aransın mı
-  notifications: { enabled: boolean }; // tüm bildirim kuralları için ana anahtar
+  notifications: {
+    enabled: boolean; // tüm bildirimler için ana anahtar
+    receive: boolean; // bu bilgisayar HA'da bildirim cihazı (notify.mobile_app_ha_desk)
+    mirror: boolean; // HA'nın zil bildirimleri Windows'a da gelsin
+  };
 };
+
+// HA'ya kayıtlı "mobil uygulama" kimliği. webhookId bir anahtar gibidir: yedeğe girmez.
+export type Mobile = { deviceId: string; webhookId: string };
 
 const VERSION = 1; // ileride format değişirse parse() içinde eski sürümleri buradan taşırız
 
@@ -48,7 +57,7 @@ const defaults: Settings = {
   connection: { primaryUrl: "", fallbackUrl: "" },
   appearance: { theme: "dark", accent: "#f0b429" },
   palette: { sensors: false },
-  notifications: { enabled: true },
+  notifications: { enabled: true, receive: false, mirror: false },
 };
 
 const newGroup = (title = ""): Group => ({ id: crypto.randomUUID(), title, tiles: [], master: [] });
@@ -62,6 +71,7 @@ export const usedSensors = derived(sensorGroups, idsOf);
 
 export const shortcuts = writable<Shortcut[]>([]);
 export const rules = writable<Rule[]>([]);
+export const mobile = writable<Mobile>({ deviceId: "", webhookId: "" });
 export const settings = writable<Settings>(JSON.parse(JSON.stringify(defaults)));
 
 // ---------- okuma / doğrulama ----------
@@ -142,6 +152,7 @@ function cleanRules(list: any): Rule[] {
     let when: RuleWhen;
     if (w.type === "state") when = { type: "state", to: String(w.to ?? "") };
     else if (w.type === "change") when = { type: "change" };
+    else if (w.type === "triggered") when = { type: "triggered" };
     else if ((w.type === "above" || w.type === "below") && Number.isFinite(Number(w.value)))
       when = { type: w.type, value: Number(w.value) };
     else continue;
@@ -166,9 +177,10 @@ function parse(text: string): {
   sg: Group[];
   sc: Shortcut[];
   r: Rule[];
+  m: Mobile;
 } {
   const raw = JSON.parse(text);
-  if (!raw || typeof raw !== "object") throw new Error("Geçersiz yedek");
+  if (!raw || typeof raw !== "object") throw new Error(tn("backup.invalid"));
   const c = raw.connection ?? {};
   const a = raw.appearance ?? {};
   const s: Settings = {
@@ -182,14 +194,23 @@ function parse(text: string): {
       accent: /^#[0-9a-f]{6}$/i.test(a.accent) ? a.accent : defaults.appearance.accent,
     },
     palette: { sensors: raw.palette?.sensors === true },
-    notifications: { enabled: raw.notifications?.enabled !== false },
+    notifications: {
+      enabled: raw.notifications?.enabled !== false,
+      receive: raw.notifications?.receive === true,
+      mirror: raw.notifications?.mirror === true,
+    },
   };
+  const mo = raw.mobile ?? {};
   return {
     s,
     g: cleanGroups(raw),
     sg: cleanGroups({ groups: raw.sensors }),
     sc: cleanShortcuts(raw.shortcuts),
     r: cleanRules(raw.rules),
+    m: {
+      deviceId: typeof mo.deviceId === "string" ? mo.deviceId : "",
+      webhookId: typeof mo.webhookId === "string" ? mo.webhookId : "",
+    },
   };
 }
 
@@ -206,6 +227,7 @@ function snapshot() {
     sensors: get(sensorGroups),
     shortcuts: get(shortcuts),
     rules: get(rules),
+    mobile: get(mobile),
   };
 }
 
@@ -227,6 +249,7 @@ groups.subscribe(scheduleSave);
 sensorGroups.subscribe(scheduleSave);
 shortcuts.subscribe(scheduleSave);
 rules.subscribe(scheduleSave);
+mobile.subscribe(scheduleSave);
 settings.subscribe(scheduleSave);
 
 // ---------- ilk yükleme ----------
@@ -256,12 +279,13 @@ export async function initConfig() {
   const text = (await invoke("load_config")) as string | null;
   if (text) {
     try {
-      const { s, g, sg, sc, r } = parse(text);
+      const { s, g, sg, sc, r, m } = parse(text);
       settings.set(s);
       groups.set(g);
       sensorGroups.set(sg);
       shortcuts.set(sc);
       rules.set(r);
+      mobile.set(m);
     } catch (e) {
       console.error("config.json okunamadı", e);
       try { localStorage.setItem("ha_desk_corrupt_backup", text); } catch {}
@@ -277,7 +301,8 @@ export async function initConfig() {
 // ---------- dışa / içe aktarma (token dahil değil) ----------
 
 export function exportJson(): string {
-  return JSON.stringify(snapshot(), null, 2);
+  const { mobile: _drop, ...rest } = snapshot(); // webhook kimliği yedeğe girmez
+  return JSON.stringify(rest, null, 2);
 }
 
 export function importJson(text: string) {
@@ -369,7 +394,7 @@ export type BoardOps = ReturnType<typeof makeOps>;
 export const tileOps = makeOps(groups);
 export const sensorOps = makeOps(sensorGroups);
 
-// HA'da entity_id değişince kutucuklar, sensörler, kısayollar ve bildirim kuralları otomatik yeni id'ye geçer
+// HA'da entity_id değişince kutucuklar, sensörler ve kısayollar otomatik yeni id'ye geçer
 const renameIn = (store: Writable<Group[]>, oldId: string, newId: string) =>
   store.update((gs) =>
     gs.map((g) => ({

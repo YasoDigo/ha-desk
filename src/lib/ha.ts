@@ -1,4 +1,5 @@
 import { writable } from "svelte/store";
+import { tn } from "./i18n/core";
 
 export type HaEntity = {
   entity_id: string;
@@ -40,11 +41,17 @@ class HaClient {
 
   onRename: ((oldId: string, newId: string) => void) | null = null;
 
+  // Her başarılı bağlantıdan (ve yeniden bağlanmadan) sonra çağrılır; abonelikler buradan kurulur
+  onReady: (() => void) | null = null;
+
+  // Kimliğe bağlı olay akışları (ör. mobile_app push, persistent_notification)
+  private subs = new Map<number, (ev: any) => void>();
+
   connect(urls: string[], token: string) {
     this.stop();
     this.bases = urls.map((u) => u.trim()).filter(Boolean).map(normalize);
     if (this.bases.length === 0) {
-      lastError.set("Adres girilmedi");
+      lastError.set(tn("ha.noAddress"));
       return;
     }
     this.token = token.trim();
@@ -64,12 +71,33 @@ class HaClient {
   call<T = any>(payload: object): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        return reject(new Error("Bağlı değil"));
+        return reject(new Error(tn("ha.notConnected")));
       }
       const id = this.nextId++;
       this.pending.set(id, { resolve, reject });
       this.ws.send(JSON.stringify({ id, ...payload }));
     });
+  }
+
+  // Özel bir akışa abone olur; dönen fonksiyon aboneliği kapatır.
+  async subscribe(payload: object, handler: (ev: any) => void): Promise<() => void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) throw new Error(tn("ha.notConnected"));
+    const ws = this.ws;
+    const id = this.nextId++;
+    this.subs.set(id, handler);
+    try {
+      await new Promise((resolve, reject) => {
+        this.pending.set(id, { resolve, reject });
+        ws.send(JSON.stringify({ id, ...payload }));
+      });
+    } catch (e) {
+      this.subs.delete(id);
+      throw e;
+    }
+    return () => {
+      if (!this.subs.delete(id)) return;
+      this.call({ type: "unsubscribe_events", subscription: id }).catch(() => {});
+    };
   }
 
   callService(
@@ -105,8 +133,9 @@ class HaClient {
       ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
       ws.close();
     }
-    for (const p of this.pending.values()) p.reject(new Error("Bağlantı kapandı"));
+    for (const p of this.pending.values()) p.reject(new Error(tn("ha.closed")));
     this.pending.clear();
+    this.subs.clear();
   }
 
   private open() {
@@ -117,13 +146,13 @@ class HaClient {
     try {
       ws = new WebSocket(toWsUrl(base));
     } catch (e) {
-      lastError.set(`Geçersiz adres: ${base}`);
+      lastError.set(tn("ha.badAddress", { url: base }));
       this.scheduleRetry();
       return;
     }
     this.ws = ws;
     ws.onmessage = (ev) => this.onMessage(JSON.parse(ev.data));
-    ws.onerror = () => lastError.set(`Bağlanamadı: ${base}`);
+    ws.onerror = () => lastError.set(tn("ha.cantConnect", { url: base }));
     ws.onclose = () => {
       this.teardown();
       if (this.wanted) this.scheduleRetry();
@@ -156,7 +185,7 @@ class HaClient {
         this.afterAuth();
         break;
       case "auth_invalid":
-        lastError.set("Token geçersiz");
+        lastError.set(tn("ha.tokenInvalid"));
         this.wanted = false;
         this.teardown();
         status.set("auth_failed");
@@ -167,15 +196,27 @@ class HaClient {
         if (!p) break;
         this.pending.delete(msg.id);
         if (msg.type === "result" && !msg.success) {
-          p.reject(new Error(msg.error?.message ?? "Komut hatası"));
+          p.reject(
+            Object.assign(new Error(msg.error?.message ?? tn("ha.cmdError")), {
+              code: msg.error?.code as string | undefined,
+            })
+          );
         } else {
           p.resolve(msg.result);
         }
         break;
       }
-      case "event":
-        this.onEvent(msg.event);
+      case "event": {
+        const h = this.subs.get(msg.id);
+        if (h) {
+          try {
+            h(msg.event);
+          } catch (e) {
+            console.error("abonelik hatası", e);
+          }
+        } else this.onEvent(msg.event);
         break;
+      }
     }
   }
 
@@ -194,7 +235,7 @@ class HaClient {
         try {
           await Promise.race([
             this.call({ type: "ping" }),
-            new Promise((_, rej) => setTimeout(() => rej(new Error("ping zaman aşımı")), 10000)),
+            new Promise((_, rej) => setTimeout(() => rej(new Error(tn("ha.pingTimeout"))), 10000)),
           ]);
         } catch {
           this.teardown();
@@ -203,6 +244,12 @@ class HaClient {
       }, 30000);
     } catch (e) {
       lastError.set(String(e));
+      return;
+    }
+    try {
+      this.onReady?.();
+    } catch (e) {
+      console.error("onReady hatası", e);
     }
   }
 

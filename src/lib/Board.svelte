@@ -12,6 +12,7 @@
   import SensorTile from "$lib/SensorTile.svelte";
   import SensorDetail from "$lib/SensorDetail.svelte";
   import BinaryDetail from "$lib/BinaryDetail.svelte";
+  import { t as tt } from "$lib/i18n";
 
   export let kind: "tiles" | "sensors" = "tiles";
   export let groupsValue: Group[] = [];
@@ -112,9 +113,7 @@
 
 {#if !groupsValue.some((g) => g.tiles.length) && !editing}
   <p class="hint">
-    {kind === "tiles"
-      ? "Henüz kutucuk yok. Sağ üstteki ✎ ile düzenleme moduna geç, grubun başlığındaki + ile ekle."
-      : "Henüz sensör yok. Sağ üstteki ✎ ile düzenleme moduna geç, grubun başlığındaki + ile ekle."}
+    {kind === "tiles" ? $tt("board.emptyTiles") : $tt("board.emptySensors")}
   </p>
 {/if}
 
@@ -138,19 +137,19 @@
     >
       {#if editing}
         <div class="ghead">
-          <span class="grip" title="Grubu tutup sürükle">⠿</span>
+          <span class="grip" title={$tt("board.dragGroup")}>⠿</span>
           <input
             class="gtitle"
             value={g.title}
-            placeholder="Grup başlığı"
+            placeholder={$tt("board.groupTitle")}
             on:change={(e) => ops.renameGroup(g.id, e.currentTarget.value)}
           />
           {#if kind === "tiles"}
-            <span class="gm" title="Grup anahtarına bağlı kutucuk sayısı">⏻ {g.master.length}</span>
+            <span class="gm" title={$tt("board.masterCount")}>⏻ {g.master.length}</span>
           {/if}
-          <button class="icon" title="Ekle" on:click={() => onPick(g.id)}>+</button>
+          <button class="icon" title={$tt("common.add")} on:click={() => onPick(g.id)}>+</button>
           {#if local.length > 1}
-            <button class="icon" title="Grubu sil" on:click={() => ops.removeGroup(g.id)}>✕</button>
+            <button class="icon" title={$tt("board.deleteGroup")} on:click={() => ops.removeGroup(g.id)}>✕</button>
           {/if}
         </div>
       {:else if g.title || (kind === "tiles" && memberIds(g).length)}
@@ -161,8 +160,8 @@
               class="gswitch"
               class:on={groupOn(g, ents)}
               on:click={() => toggleGroup(g)}
-              title="Seçili kutucukları aç/kapat"
-              aria-label="Grubu aç/kapat"
+              title={$tt("board.masterToggle")}
+              aria-label={$tt("board.masterAria")}
             ><span class="knob"></span></button>
           {/if}
         </div>
@@ -195,7 +194,7 @@
                 <button
                   class="link"
                   class:on={g.master.includes(t.id)}
-                  title="Grup anahtarına bağla"
+                  title={$tt("board.link")}
                   on:click|stopPropagation={() => ops.toggleMaster(g.id, t.id)}
                 >⏻</button>
               {/if}
@@ -228,7 +227,7 @@
 </div>
 
 {#if editing}
-  <button class="add" on:click={() => ops.addGroup()}>+ Grup ekle</button>
+  <button class="add" on:click={() => ops.addGroup()}>{$tt("board.addGroup")}</button>
 {/if}
 
 {#if kind === "sensors" && openId && ents[openId]}
@@ -245,7 +244,7 @@
         <SensorDetail entityId={openId} entity={ents[openId]} onClose={() => (openId = null)} />
       {/if}
       {#if $activeUrl}
-        <button class="halink" on:click={() => openInHa(openId ?? "")}>HA'da aç ↗</button>
+        <button class="halink" on:click={() => openInHa(openId ?? "")}>{$tt("board.openHa")}</button>
       {/if}
     </div>
   </div>

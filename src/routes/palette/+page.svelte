@@ -5,34 +5,37 @@
   import { invoke } from "@tauri-apps/api/core";
   import { ha, status, entities } from "$lib/ha";
   import type { HaEntity } from "$lib/ha";
-  import { domainOf, kindOf, hasDetail, press, HVAC_TR } from "$lib/tileKind";
+  import { domainOf, kindOf, hasDetail, press, hvacLabel, stateText } from "$lib/tileKind";
+  import { settings } from "$lib/config";
+  import { t, tn } from "$lib/i18n";
+  import type { Key, TFn } from "$lib/i18n";
   import Tile from "$lib/Tile.svelte";
   import SensorDetail from "$lib/SensorDetail.svelte";
 
   // Palette gelen varlık türleri (ileride buraya yenisi eklemek yeterli)
-  const DOMAINS: Record<string, { label: string; icon: string }> = {
-    light: { label: "Işık", icon: "💡" },
-    switch: { label: "Anahtar", icon: "🔌" },
-    scene: { label: "Sahne", icon: "🎬" },
-    script: { label: "Script", icon: "📜" },
-    automation: { label: "Otomasyon", icon: "⚙️" },
-    input_boolean: { label: "Düğme", icon: "🔘" },
-    button: { label: "Buton", icon: "🔲" },
-    input_button: { label: "Buton", icon: "🔲" },
-    fan: { label: "Fan", icon: "🌀" },
-    cover: { label: "Perde", icon: "🪟" },
-    lock: { label: "Kilit", icon: "🔒" },
-    climate: { label: "Klima", icon: "🌡️" },
-    media_player: { label: "Medya", icon: "🎵" },
-    number: { label: "Sayı", icon: "🎚️" },
-    input_number: { label: "Sayı", icon: "🎚️" },
-    select: { label: "Seçim", icon: "📋" },
-    input_select: { label: "Seçim", icon: "📋" },
+  const DOMAINS: Record<string, { label: Key; icon: string }> = {
+    light: { label: "dom.light", icon: "💡" },
+    switch: { label: "dom.switch", icon: "🔌" },
+    scene: { label: "dom.scene", icon: "🎬" },
+    script: { label: "dom.script", icon: "📜" },
+    automation: { label: "dom.automation", icon: "⚙️" },
+    input_boolean: { label: "dom.input_boolean", icon: "🔘" },
+    button: { label: "dom.button", icon: "🔲" },
+    input_button: { label: "dom.button", icon: "🔲" },
+    fan: { label: "dom.fan", icon: "🌀" },
+    cover: { label: "dom.cover", icon: "🪟" },
+    lock: { label: "dom.lock", icon: "🔒" },
+    climate: { label: "dom.climate", icon: "🌡️" },
+    media_player: { label: "dom.media", icon: "🎵" },
+    number: { label: "dom.number", icon: "🎚️" },
+    input_number: { label: "dom.number", icon: "🎚️" },
+    select: { label: "dom.select", icon: "📋" },
+    input_select: { label: "dom.select", icon: "📋" },
   };
   // Sadece ayarlarda "sensörleri de ara" açıksa ve bir şey yazılmışsa aranır
-  const SENSOR_DOMAINS: Record<string, { label: string; icon: string }> = {
-    sensor: { label: "Sensör", icon: "🌡️" },
-    binary_sensor: { label: "Durum", icon: "📡" },
+  const SENSOR_DOMAINS: Record<string, { label: Key; icon: string }> = {
+    sensor: { label: "dom.sensor", icon: "🌡️" },
+    binary_sensor: { label: "dom.binary", icon: "📡" },
   };
   const META = { ...DOMAINS, ...SENSOR_DOMAINS };
   // Enter'a basınca "çalıştır" olan türler (diğerleri aç/kapat yapılır)
@@ -65,7 +68,7 @@
     s
       .toLocaleLowerCase("tr")
       .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/ı/g, "i");
 
   function loadRecent(): string[] {
@@ -100,20 +103,21 @@
     return s;
   }
 
-  function toItem(e: HaEntity): Item {
+  function toItem(e: HaEntity, tf: TFn): Item {
     const name = String(e.attributes.friendly_name ?? e.entity_id);
-    const meta = META[domainOf(e.entity_id)];
+    const m = META[domainOf(e.entity_id)];
+    const meta = { icon: m.icon, label: tf(m.label) };
     return { e, name, fname: fold(name), hay: fold(`${name} ${e.entity_id} ${meta.label}`), meta };
   }
 
   $: items = Object.values($entities)
     .filter((e) => DOMAINS[domainOf(e.entity_id)])
-    .map(toItem);
+    .map((e) => toItem(e, $t));
 
   $: sensorItems = withSensors
     ? Object.values($entities)
         .filter((e) => SENSOR_DOMAINS[domainOf(e.entity_id)])
-        .map(toItem)
+        .map((e) => toItem(e, $t))
     : [];
 
   $: tokens = fold(query).split(/\s+/).filter(Boolean);
@@ -138,7 +142,8 @@
   $: if (sel >= results.length) sel = Math.max(0, results.length - 1);
 
   $: dEntity = detailId ? $entities[detailId] : undefined;
-  $: dMeta = detailId ? META[domainOf(detailId)] : undefined;
+  $: dm = detailId ? META[domainOf(detailId)] : undefined;
+  $: dMeta = dm ? { icon: dm.icon, label: $t(dm.label) } : undefined;
   $: dIsSensor = detailId ? !!SENSOR_DOMAINS[domainOf(detailId)] : false;
 
   const isSensorDomain = (e: HaEntity) => !!SENSOR_DOMAINS[domainOf(e.entity_id)];
@@ -152,26 +157,24 @@
     return k === "dimmer" || DETAIL_ONLY.has(k) || k === "cover" || hasDetail(e);
   }
 
-  function stateLabel(it: Item): string {
+  function stateLabel(it: Item, tf: TFn): string {
     const { state } = it.e;
     const d = domainOf(it.e.entity_id);
-    if (state === "unavailable") return "Yok";
-    if (d === "automation") return state === "on" ? "Etkin" : "Devre dışı";
+    if (state === "unavailable") return tf("pal.na");
+    if (d === "automation") return state === "on" ? tf("pal.enabled") : tf("pal.disabled");
     if (BUTTONY.has(d)) return "";
-    if (d === "binary_sensor") return state === "on" ? "Aktif" : state === "off" ? "Pasif" : state;
-    if (d === "lock") return state === "locked" ? "Kilitli" : state === "unlocked" ? "Kilit açık" : state;
-    if (d === "cover") return state === "open" ? "Açık" : state === "closed" ? "Kapalı" : state === "opening" ? "Açılıyor" : state === "closing" ? "Kapanıyor" : state;
-    if (d === "climate") return state === "off" ? "Kapalı" : (HVAC_TR[state] ?? state);
-    if (d === "media_player") return state === "playing" ? "Çalıyor" : state === "paused" ? "Duraklatıldı" : state === "off" ? "Kapalı" : state === "idle" ? "Boşta" : state;
-    if (state === "on") return "Açık";
-    if (state === "off") return "Kapalı";
+    if (d === "binary_sensor") return state === "on" ? tf("pal.active") : state === "off" ? tf("pal.inactive") : state;
+    if (d === "lock" || d === "cover" || d === "media_player") return stateText(state, tf);
+    if (d === "climate") return state === "off" ? tf("state.off") : hvacLabel(state, tf);
+    if (state === "on") return tf("state.on");
+    if (state === "off") return tf("state.off");
     const unit = it.e.attributes.unit_of_measurement;
     return unit ? `${state} ${unit}` : state;
   }
 
   function activate(e: HaEntity, alt = false) {
     if ($status !== "connected") {
-      note = "HA'ya bağlı değil";
+      note = tn("pal.notConnected");
       return;
     }
     const id = e.entity_id;
@@ -179,7 +182,7 @@
     // Sensörler salt okunur: sayısal olanın grafiği açılır
     if (isSensorDomain(e)) {
       if (hasMore(e)) openDetail(e);
-      else note = "Salt okunur";
+      else note = tn("pal.readOnly");
       return;
     }
     remember(id);
@@ -282,13 +285,16 @@
       const raw = text ? JSON.parse(text) : {};
       applyTheme(raw.appearance);
       withSensors = raw.palette?.sensors === true;
+      // Dil ana pencerede değişmiş olabilir
+      const lg = ["auto", "tr", "en"].includes(raw.language) ? raw.language : "auto";
+      settings.update((s) => (s.language === lg ? s : { ...s, language: lg }));
       const c = raw.connection ?? {};
       const urls = [c.primaryUrl, c.fallbackUrl].filter(
         (u) => typeof u === "string" && u.trim()
       ) as string[];
       const token = (await invoke("get_token")) as string | null;
       if (!token || urls.length === 0) {
-        note = "Önce ana pencerede bağlantıyı ayarla";
+        note = tn("pal.setupFirst");
         return;
       }
       const key = JSON.stringify([urls, token]);
@@ -310,17 +316,18 @@
   }
 
   // Alt satırdaki ipucu seçili öğeye göre değişir
-  function hintFor(it?: Item): string {
-    if (!it) return "Esc kapat";
+  function hintFor(it: Item | undefined, tf: TFn): string {
+    const esc = tf("hint.esc");
+    const join = (...p: string[]) => [...p, esc].join(" · ");
+    if (!it) return esc;
     const d = domainOf(it.e.entity_id);
     const k = kindOf(it.e);
-    const more = hasMore(it.e) ? " · → ayrıntı" : "";
-    if (isSensorDomain(it.e)) return hasMore(it.e) ? "Enter grafik · Esc kapat" : "Salt okunur · Esc kapat";
-    if (DETAIL_ONLY.has(k)) return "Enter ayrıntı · Esc kapat";
-    if (k === "cover") return `Enter aç/kapat · → ayrıntı · Esc kapat`;
-    if (d === "automation") return "Enter tetikle · Shift+Enter etkin/devre dışı · Esc kapat";
-    if (BUTTONY.has(d)) return "Enter çalıştır · Esc kapat";
-    return `Enter aç/kapat${more} · Esc kapat`;
+    if (isSensorDomain(it.e)) return join(hasMore(it.e) ? tf("hint.chart") : tf("hint.readonly"));
+    if (DETAIL_ONLY.has(k)) return join(tf("hint.detail"));
+    if (k === "cover") return join(tf("hint.toggle"), tf("hint.more"));
+    if (d === "automation") return join(tf("hint.trigger"), tf("hint.autoSwitch"));
+    if (BUTTONY.has(d)) return join(tf("hint.run"));
+    return join(tf("hint.toggle"), ...(hasMore(it.e) ? [tf("hint.more")] : []));
   }
 
   async function onShow() {
@@ -361,7 +368,7 @@
       bind:value={query}
       on:keydown={onKey}
       on:input={() => (note = "")}
-      placeholder="Ara: ışık, sahne, script, otomasyon…"
+      placeholder={$t("pal.placeholder")}
       spellcheck="false"
       autocomplete="off"
     />
@@ -381,22 +388,22 @@
           <span class="name">{it.name}</span>
           <span class="id">{it.e.entity_id}</span>
         </span>
-        {#if stateLabel(it)}
-          <span class="pill" class:on={it.e.state === "on"}>{stateLabel(it)}</span>
+        {#if stateLabel(it, $t)}
+          <span class="pill" class:on={it.e.state === "on"}>{stateLabel(it, $t)}</span>
         {/if}
         <span class="dom">{it.meta.label}</span>
         {#if hasMore(it.e)}
-          <button class="more" title="Ayrıntı" on:click|stopPropagation={() => openDetail(it.e)}>›</button>
+          <button class="more" title={$t("pal.detail")} on:click|stopPropagation={() => openDetail(it.e)}>›</button>
         {/if}
       </div>
     {:else}
       <div class="empty">
         {#if $status !== "connected"}
-          Bağlanıyor…
+          {$t("main.connecting")}
         {:else if query}
-          Sonuç yok
+          {$t("pal.noResults")}
         {:else}
-          Varlık bulunamadı
+          {$t("pal.noEntities")}
         {/if}
       </div>
     {/each}
@@ -412,10 +419,10 @@
       >
         <div class="bar">
           <span class="dtype">{dMeta?.icon} {dMeta?.label}</span>
-          <button class="x" title="Kapat (Esc)" on:click={closeDetail}>✕</button>
+          <button class="x" title={$t("pal.closeEsc")} on:click={closeDetail}>✕</button>
         </div>
         {#if !dEntity}
-          <div class="empty">Varlık bulunamadı</div>
+          <div class="empty">{$t("pal.noEntities")}</div>
         {:else if dIsSensor}
           <SensorDetail entityId={detailId} entity={dEntity} onClose={closeDetail} />
         {:else if kindOf(dEntity) === "select"}
@@ -444,11 +451,11 @@
     {#if note}
       <span class="warn">{note}</span>
     {:else if detailId}
-      <span>Esc geri</span>
+      <span>{$t("pal.back")}</span>
     {:else}
-      <span>↑↓ seç · {hintFor(results[sel])}</span>
+      <span>{$t("pal.select")} · {hintFor(results[sel], $t)}</span>
     {/if}
-    <span>{$status === "connected" ? (detailId ? "canlı" : `${results.length} sonuç`) : "bağlı değil"}</span>
+    <span>{$status === "connected" ? (detailId ? $t("pal.live") : $t("pal.results", { n: results.length })) : $t("pal.offline")}</span>
   </div>
 </div>
 

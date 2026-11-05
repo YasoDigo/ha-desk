@@ -1,18 +1,24 @@
 <script lang="ts">
-  import { entities } from "$lib/ha";
+  import { entities, status } from "$lib/ha";
   import { rules, settings } from "$lib/config";
   import type { Rule, RuleWhen } from "$lib/config";
   import { addRule, removeRule, patchRule, setWhenType, testRule } from "$lib/notify";
+  import { mobileInfo, sendTest, SERVICE } from "$lib/mobile";
+  import { t } from "$lib/i18n";
+  import type { Key } from "$lib/i18n";
 
-  const WHEN: [RuleWhen["type"], string][] = [
-    ["state", "Durum şuna dönünce"],
-    ["change", "Durum her değiştiğinde"],
-    ["above", "Değer şunun üstüne çıkınca"],
-    ["below", "Değer şunun altına inince"],
+  const WHEN: [RuleWhen["type"], Key][] = [
+    ["state", "rule.when.state"],
+    ["change", "rule.when.change"],
+    ["above", "rule.when.above"],
+    ["below", "rule.when.below"],
+    ["triggered", "rule.when.triggered"],
   ];
 
   // Aynı anda tek kural düzenlenir, diğerleri tek satıra iner
   let openId: string | null = null;
+  let testMsg = "";
+  let testing = false;
 
   const nameOf = (id: string) => String($entities[id]?.attributes.friendly_name ?? id);
 
@@ -26,10 +32,13 @@
 
   // Kaydetmeyi engelleyen eksik var mı?
   function problem(r: Rule): string {
-    if (r.entity_id === "") return "Önce bir varlık seç";
-    if (r.when.type === "state" && r.when.to === "") return "Durum boş olamaz";
+    if (r.entity_id === "") return $t("rule.pickEntity");
+    if (r.when.type === "state" && r.when.to === "") return $t("rule.stateEmpty");
     return "";
   }
+
+  // Durumsuz kurallar (değişim, çalıştırma) için "en az şu kadar sürerse" anlamsızdır
+  const timed = (r: Rule) => r.when.type !== "change" && r.when.type !== "triggered";
 
   function add() {
     openId = addRule();
@@ -45,6 +54,13 @@
     removeRule(id);
     if (openId === id) openId = null;
   }
+
+  async function doTest() {
+    testing = true;
+    testMsg = "";
+    testMsg = await sendTest();
+    testing = false;
+  }
 </script>
 
 <datalist id="n-ents">
@@ -55,11 +71,54 @@
 
 <label class="check">
   <input type="checkbox" bind:checked={$settings.notifications.enabled} />
-  Bildirimleri etkinleştir (ana anahtar)
+  {$t("rule.master")}
 </label>
 
+<div class="box">
+  <h4>{$t("hn.title")}</h4>
+
+  <label class="check">
+    <input type="checkbox" bind:checked={$settings.notifications.receive} />
+    {$t("hn.receive")}
+  </label>
+  {#if $settings.notifications.receive}
+    <p class="hint">{$t("hn.receiveHint", { service: SERVICE })}</p>
+    <p class="stat" class:bad={$mobileInfo.push === "error"}>
+      {#if $mobileInfo.push === "registering"}
+        {$t("hn.registering")}
+      {:else if $mobileInfo.push === "listening"}
+        ● {$t("hn.listening")}
+      {:else if $mobileInfo.push === "error"}
+        {$mobileInfo.pushErr}
+      {/if}
+    </p>
+    <div class="row">
+      <button disabled={$status !== "connected" || $mobileInfo.push !== "listening" || testing} on:click={doTest}>
+        {$t("hn.sendTest")}
+      </button>
+      {#if testMsg}<span class="warn">{testMsg}</span>{/if}
+    </div>
+  {/if}
+
+  <label class="check">
+    <input type="checkbox" bind:checked={$settings.notifications.mirror} />
+    {$t("hn.mirror")}
+  </label>
+  {#if $settings.notifications.mirror}
+    <p class="stat" class:bad={$mobileInfo.mirror === "error"}>
+      {#if $mobileInfo.mirror === "listening"}
+        ● {$t("hn.mirrorOn")}
+      {:else if $mobileInfo.mirror === "error"}
+        {$mobileInfo.mirrorErr}
+      {/if}
+    </p>
+  {/if}
+</div>
+
+<h4 class="sec">{$t("rule.title")}</h4>
+
 {#if $rules.length === 0}
-  <p class="hint">Henüz kural yok.</p>
+  <p class="hint">{$t("rule.none")}</p>
 {/if}
 
 {#each $rules as r (r.id)}
@@ -70,17 +129,17 @@
         <input
           class="grow"
           value={r.name}
-          placeholder="Kural adı"
+          placeholder={$t("rule.name")}
           on:change={(e) => patchRule(r.id, { name: e.currentTarget.value })}
         />
-        <button class="icon" title="Kuralı sil" on:click={() => remove(r.id)}>✕</button>
+        <button class="icon" title={$t("rule.delete")} on:click={() => remove(r.id)}>✕</button>
       </div>
 
       <input
         list="n-ents"
         class:bad={r.entity_id !== "" && !$entities[r.entity_id]}
         value={r.entity_id}
-        placeholder="entity_id (yazarak ara)"
+        placeholder={$t("common.entityPh")}
         on:change={(e) => patchRule(r.id, { entity_id: e.currentTarget.value.trim() })}
       />
 
@@ -91,7 +150,7 @@
           on:change={(e) => setWhenType(r.id, e.currentTarget.value as RuleWhen["type"])}
         >
           {#each WHEN as [k, label]}
-            <option value={k}>{label}</option>
+            <option value={k}>{$t(label)}</option>
           {/each}
         </select>
 
@@ -103,7 +162,7 @@
             class="val"
             list="st-{r.id}"
             value={r.when.to}
-            placeholder="örn. on"
+            placeholder={$t("rule.statePh")}
             on:change={(e) => patchRule(r.id, { when: { type: "state", to: e.currentTarget.value.trim() } })}
           />
         {:else if r.when.type === "above" || r.when.type === "below"}
@@ -112,7 +171,7 @@
             type="number"
             step="any"
             value={r.when.value}
-            placeholder="eşik"
+            placeholder={$t("rule.thresholdPh")}
             on:change={(e) =>
               patchRule(r.id, {
                 when: { type: r.when.type === "above" ? "above" : "below", value: +e.currentTarget.value },
@@ -121,9 +180,9 @@
         {/if}
       </div>
 
-      {#if r.when.type !== "change"}
+      {#if timed(r)}
         <label class="inline">
-          En az şu kadar sürerse (sn, 0 = hemen)
+          {$t("rule.forSec")}
           <input
             class="num"
             type="number"
@@ -137,18 +196,18 @@
 
       <input
         value={r.title}
-        placeholder="Başlık  ({'{name}'} {'{state}'} {'{old}'} {'{unit}'})"
+        placeholder={$t("rule.titlePh")}
         on:change={(e) => patchRule(r.id, { title: e.currentTarget.value })}
       />
       <input
         value={r.body}
-        placeholder="Metin"
+        placeholder={$t("rule.bodyPh")}
         on:change={(e) => patchRule(r.id, { body: e.currentTarget.value })}
       />
 
       <div class="row">
-        <button class="primary" on:click={() => save(r.id)}>Kaydet</button>
-        <button on:click={() => testRule(r)}>Test et</button>
+        <button class="primary" on:click={() => save(r.id)}>{$t("common.save")}</button>
+        <button on:click={() => testRule(r)}>{$t("common.test")}</button>
         {#if p}<span class="warn">{p}</span>{/if}
       </div>
     </div>
@@ -157,19 +216,48 @@
       <input
         type="checkbox"
         checked={r.enabled}
-        title="Kuralı aç/kapat"
+        title={$t("rule.toggle")}
         on:change={(e) => patchRule(r.id, { enabled: e.currentTarget.checked })}
       />
-      <span class="nm" title={r.entity_id}>{r.name || r.entity_id || "Adsız kural"}</span>
-      <button class="small" on:click={() => testRule(r)}>Test et</button>
-      <button class="small" on:click={() => (openId = r.id)}>Düzenle</button>
+      <span class="nm" title={r.entity_id}>{r.name || r.entity_id || $t("rule.unnamed")}</span>
+      <button class="small" on:click={() => testRule(r)}>{$t("common.test")}</button>
+      <button class="small" on:click={() => (openId = r.id)}>{$t("common.edit")}</button>
     </div>
   {/if}
 {/each}
 
-<button on:click={add}>+ Kural ekle</button>
+<button on:click={add}>{$t("rule.add")}</button>
 
 <style>
+  .box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  h4 {
+    margin: 0;
+    font-size: 12px;
+    opacity: 0.75;
+  }
+  .sec {
+    margin-top: 2px;
+  }
+  .stat {
+    margin: 0;
+    font-size: 12px;
+    color: #3ecf6e;
+  }
+  .stat.bad {
+    color: #e5484d;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
   .hint {
     opacity: 0.65;
     font-size: 12px;

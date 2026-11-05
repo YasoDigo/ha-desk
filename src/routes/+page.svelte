@@ -21,7 +21,8 @@
   import Board from "$lib/Board.svelte";
   import NotifyPanel from "$lib/NotifyPanel.svelte";
   import { startNotifications } from "$lib/notify";
-  import { t } from "$lib/i18n";
+  import { t, tn } from "$lib/i18n";
+  import { startMobile } from "$lib/mobile";
 
   const SENSOR_DOMAINS = ["sensor", "binary_sensor"];
 
@@ -60,6 +61,7 @@
     loadDrafts();
     startShortcuts();
     startNotifications();
+    startMobile();
     try { autostart = await isEnabled(); } catch {}
     const t = (await invoke("get_token")) as string | null;
     hasToken = !!t;
@@ -109,9 +111,9 @@
     backupText = exportJson();
     try {
       await navigator.clipboard.writeText(backupText);
-      backupMsg = "Panoya kopyalandı (token dahil değil).";
+      backupMsg = tn("backup.copied");
     } catch {
-      backupMsg = "Metni elle kopyalayabilirsin.";
+      backupMsg = tn("backup.manual");
     }
   }
 
@@ -119,11 +121,11 @@
     try {
       importJson(backupText);
       loadDrafts();
-      backupMsg = "İçe aktarıldı.";
+      backupMsg = tn("backup.imported");
       const t = (await invoke("get_token")) as string | null;
       if (t && urlList().length) ha.connect(urlList(), t);
     } catch (e) {
-      backupMsg = "Hata: " + String(e);
+      backupMsg = tn("common.error", { msg: String(e) });
     }
   }
 
@@ -179,13 +181,13 @@
     if (e.shiftKey) mods.push("Shift");
     if (e.metaKey) mods.push("Super");
     if (mods.length === 0 && !/^F\d{1,2}$/.test(e.code)) {
-      recordMsg = "Tek tuş olmaz: Ctrl, Alt veya Shift ile birlikte bas (F tuşları serbest).";
+      recordMsg = tn("sc.needMod");
       return;
     }
     const keys = [...mods, e.code].join("+");
     const dup = conflictIndex(keys, recordingId);
     if (dup >= 0) {
-      recordMsg = `Bu kombinasyon zaten kısayol #${dup + 1} için kullanılıyor. Başka bir tuşa bas.`;
+      recordMsg = tn("sc.dup", { n: dup + 1 });
       return;
     }
     patchShortcut(recordingId, { keys });
@@ -257,28 +259,28 @@
     <span class="sp" data-tauri-drag-region></span>
     {#if view === "tiles" && connected}
       <div class="seg">
-        <button class:sel={section === "tiles"} on:click={() => setSection("tiles")}>Kutucuklar</button>
-        <button class:sel={section === "sensors"} on:click={() => setSection("sensors")}>Sensörler</button>
+        <button class:sel={section === "tiles"} on:click={() => setSection("tiles")}>{$t("main.tiles")}</button>
+        <button class:sel={section === "sensors"} on:click={() => setSection("sensors")}>{$t("main.sensors")}</button>
       </div>
-      <button class="icon" class:active={editing} on:click={() => { editing = !editing; picking = false; detailId = null; }} title="Düzenle">✎</button>
+      <button class="icon" class:active={editing} on:click={() => { editing = !editing; picking = false; detailId = null; }} title={$t("common.edit")}>✎</button>
     {/if}
     <button
       class="icon"
       class:active={pinned}
       on:click={togglePin}
-      title={pinned ? "Sabitlemeyi kaldır" : "Açık tut (sabitle) ve başlıktan sürükle"}
-      aria-label="Sabitle"
+      title={pinned ? $t("main.unpin") : $t("main.pin")}
+      aria-label={$t("main.pinAria")}
     >
       <svg viewBox="0 0 24 24" width="14" height="14" fill={pinned ? "currentColor" : "none"} stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
         <path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6z" /><line x1="12" y1="14" x2="12" y2="21" />
       </svg>
     </button>
-    <button class="icon" class:active={view === "settings"} on:click={toggleSettings} title="Ayarlar">⚙</button>
+    <button class="icon" class:active={view === "settings"} on:click={toggleSettings} title={$t("main.settings")}>⚙</button>
   </header>
 
   <div class="body">
     {#if !ready}
-      <p class="hint">Yükleniyor…</p>
+      <p class="hint">{$t("common.loading")}</p>
     {:else if view === "settings"}
       <section class="settings">
         <nav class="tabs">
@@ -345,7 +347,7 @@
             </datalist>
 
             {#if $shortcuts.length === 0}
-              <p class="hint">Henüz kısayol yok.</p>
+              <p class="hint">{$t("sc.none")}</p>
             {/if}
 
             {#each $shortcuts as s, i (s.id)}
@@ -353,15 +355,15 @@
                 <div class="row">
                   <span class="num">#{i + 1}</span>
                   <button class="keys" class:rec={recordingId === s.id} on:click={() => startRecord(s.id)}>
-                    {recordingId === s.id ? "Tuşlara bas… (Esc iptal)" : s.keys ? prettyKeys(s.keys) : "Tuş ata"}
+                    {recordingId === s.id ? $t("sc.recording") : s.keys ? prettyKeys(s.keys) : $t("sc.assign")}
                   </button>
-                  <button class="icon" on:click={() => removeShortcut(s.id)} title="Sil">✕</button>
+                  <button class="icon" on:click={() => removeShortcut(s.id)} title={$t("common.delete")}>✕</button>
                 </div>
                 {#if recordingId === s.id && recordMsg}<p class="err">{recordMsg}</p>{/if}
 
                 <select value={actionKind(s.action)} on:change={(e) => setKind(s.id, e.currentTarget.value as ActionKind)}>
                   {#each ACTION_OPTIONS as [k, label]}
-                    <option value={k}>{label}</option>
+                    <option value={k}>{$t(label)}</option>
                   {/each}
                 </select>
 
@@ -370,54 +372,54 @@
                     list="ent-list"
                     class:bad={entityOf(s.action) !== "" && !$entities[entityOf(s.action)]}
                     value={entityOf(s.action)}
-                    placeholder="entity_id (yazarak ara)"
+                    placeholder={$t("common.entityPh")}
                     on:change={(e) => setEntity(s.id, e.currentTarget.value.trim())}
                   />
                 {/if}
 
                 {#if s.action.type === "adjust"}
-                  <label class="inline">Adım
+                  <label class="inline">{$t("sc.step")}
                     <input type="number" min="1" value={stepOf(s.action)}
                       on:change={(e) => setStep(s.id, +e.currentTarget.value)} />
                   </label>
                 {:else if s.action.type === "set"}
-                  <label class="inline">Değer
+                  <label class="inline">{$t("sc.value")}
                     <input type="number" value={valueOf(s.action)}
                       on:change={(e) => setValue(s.id, +e.currentTarget.value)} />
                   </label>
                 {/if}
 
-                {#if $shortcutErrors[s.id]}<p class="err">Kaydedilemedi: {$shortcutErrors[s.id]}</p>{/if}
+                {#if $shortcutErrors[s.id]}<p class="err">{$t("sc.saveFail", { err: $shortcutErrors[s.id] })}</p>{/if}
               </div>
             {/each}
 
-            <button on:click={addShortcut}>+ Kısayol ekle</button>
+            <button on:click={addShortcut}>{$t("sc.add")}</button>
           {:else if tab === "bildirim"}
             <NotifyPanel />
           {:else}
-            <textarea bind:value={backupText} placeholder="Yedek JSON"></textarea>
+            <textarea bind:value={backupText} placeholder={$t("backup.ph")}></textarea>
             <div class="row">
-              <button on:click={doExport}>Dışa aktar</button>
-              <button on:click={doImport}>İçe aktar</button>
+              <button on:click={doExport}>{$t("backup.export")}</button>
+              <button on:click={doImport}>{$t("backup.import")}</button>
             </div>
             {#if backupMsg}<p class="hint">{backupMsg}</p>{/if}
           {/if}
         </div>
 
-        <button class="primary" on:click={toggleSettings}>Tamam</button>
+        <button class="primary" on:click={toggleSettings}>{$t("common.ok")}</button>
       </section>
     {:else if !connected}
       <p class="hint">
-        {$status === "auth_failed" ? "Token geçersiz." : "Bağlanıyor…"}
-        Gerekirse ⚙ ayarlarından adresi ve token'ı kontrol et.
+        {$status === "auth_failed" ? $t("main.tokenInvalid") : $t("main.connecting")}
+        {$t("main.checkSettings")}
       </p>
       {#if $lastError}<p class="err">{$lastError}</p>{/if}
     {:else if picking}
       <div class="picker">
         <div class="prow">
-          <input class="grow" placeholder="Ara..." bind:value={filter} />
+          <input class="grow" placeholder={$t("common.search")} bind:value={filter} />
           <select bind:value={domainFilter}>
-            <option value="">Hepsi</option>
+            <option value="">{$t("common.all")}</option>
             {#each domains as d}<option value={d}>{d}</option>{/each}
           </select>
         </div>
@@ -431,7 +433,7 @@
             </li>
           {/each}
         </ul>
-        <button class="primary" on:click={() => (picking = false)}>Bitti</button>
+        <button class="primary" on:click={() => (picking = false)}>{$t("common.done")}</button>
       </div>
     {:else if section === "tiles"}
       <Board

@@ -5,21 +5,24 @@ import { ha, entities, status } from "./ha";
 import { shortcuts } from "./config";
 import type { Action } from "./config";
 import { kindOf, domainOf, pctOf, setPct, press } from "./tileKind";
+import { tn } from "./i18n/core";
+import type { Key } from "./i18n/core";
 
 // ---------- arayüz için yardımcılar ----------
 
 export type ActionKind = "toggle" | "on" | "off" | "run" | "inc" | "dec" | "set" | "popup" | "palette";
 
-export const ACTION_OPTIONS: [ActionKind, string][] = [
-  ["toggle", "Aç/Kapat"],
-  ["on", "Aç"],
-  ["off", "Kapat"],
-  ["run", "Çalıştır (sahne/script/otomasyon/buton)"],
-  ["inc", "Artır (+)"],
-  ["dec", "Azalt (−)"],
-  ["set", "Değer ata"],
-  ["popup", "Popup'ı aç/kapat"],
-  ["palette", "Komut paletini aç/kapat"],
+// Etiketler sözlük anahtarıdır; ekranda $t(label) ile gösterilir
+export const ACTION_OPTIONS: [ActionKind, Key][] = [
+  ["toggle", "action.toggle"],
+  ["on", "action.on"],
+  ["off", "action.off"],
+  ["run", "action.run"],
+  ["inc", "action.inc"],
+  ["dec", "action.dec"],
+  ["set", "action.set"],
+  ["popup", "action.popup"],
+  ["palette", "action.palette"],
 ];
 
 export const actionKind = (a: Action): ActionKind =>
@@ -184,7 +187,7 @@ async function doSync() {
     if (needsEntity(s.action) && !entityOf(s.action)) continue;
     const n = normKeys(s.keys);
     if (seen.has(n)) {
-      errs[s.id] = `Bu tuş kısayol #${seen.get(n)! + 1} ile aynı`;
+      errs[s.id] = tn("sc.dupErr", { n: seen.get(n)! + 1 });
       continue;
     }
     seen.set(n, i);

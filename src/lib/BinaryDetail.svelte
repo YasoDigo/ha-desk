@@ -2,6 +2,8 @@
   import { onDestroy, onMount } from "svelte";
   import type { HaEntity } from "$lib/ha";
   import { fetchStates } from "$lib/history";
+  import { binInfo } from "$lib/tileKind";
+  import { t, tn, locale } from "$lib/i18n";
   import type { StatePoint } from "$lib/history";
 
   export let entityId: string;
@@ -10,32 +12,10 @@
 
   type Bin = [string, string, boolean];
 
-  // device_class -> [açıkken metin, kapalıyken metin, açıkken uyarı mı?]
-  const BIN: Record<string, Bin> = {
-    door: ["Açık", "Kapalı", false],
-    window: ["Açık", "Kapalı", false],
-    garage_door: ["Açık", "Kapalı", false],
-    opening: ["Açık", "Kapalı", false],
-    lock: ["Açık", "Kilitli", true],
-    motion: ["Hareket var", "Hareket yok", false],
-    occupancy: ["Dolu", "Boş", false],
-    presence: ["Evde", "Dışarıda", false],
-    moisture: ["Islak", "Kuru", true],
-    smoke: ["Duman var", "Temiz", true],
-    gas: ["Gaz var", "Temiz", true],
-    problem: ["Sorun var", "Sorun yok", true],
-    safety: ["Güvensiz", "Güvenli", true],
-    tamper: ["Kurcalandı", "Normal", true],
-    battery: ["Düşük", "Normal", true],
-    connectivity: ["Bağlı", "Bağlı değil", false],
-    power: ["Var", "Yok", false],
-    running: ["Çalışıyor", "Durdu", false],
-  };
-
   const RANGES = [
-    { h: 6, label: "6 sa" },
-    { h: 24, label: "24 sa" },
-    { h: 168, label: "7 gün" },
+    { h: 6, label: "range.6h" as const },
+    { h: 24, label: "range.24h" as const },
+    { h: 168, label: "range.7d" as const },
   ];
 
   type Seg = { from: number; to: number; s: string };
@@ -49,19 +29,19 @@
   let timer: ReturnType<typeof setInterval> | null = null;
 
   $: name = entity?.attributes.friendly_name ?? entityId;
-  $: bin = BIN[entity?.attributes.device_class ?? ""] ?? (["Açık", "Kapalı", false] as Bin);
+  $: bin = binInfo(entity?.attributes.device_class, $t);
   $: state = entity?.state ?? "";
   $: active = state === "on";
   $: isAlert = active && bin[2];
   $: nowLabel = state === "on" ? bin[0] : state === "off" ? bin[1] : "—";
 
-  const label = (s: string, b: Bin) => (s === "on" ? b[0] : s === "off" ? b[1] : "Bilinmiyor");
+  const label = (s: string, b: Bin) => (s === "on" ? b[0] : s === "off" ? b[1] : tn("common.unknown"));
   const cls = (s: string, b: Bin) =>
     s === "on" ? (b[2] ? "alert" : "on") : s === "off" ? "off" : "dead";
 
   const fmtT = (t: number, h: number) =>
     new Date(t).toLocaleString(
-      "tr-TR",
+      locale(),
       h > 24
         ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }
         : { hour: "2-digit", minute: "2-digit" }
@@ -71,9 +51,9 @@
     const m = Math.round(ms / 60000);
     const h = Math.floor(m / 60);
     const d = Math.floor(h / 24);
-    if (d > 0) return `${d} g ${h % 24} sa`;
-    if (h > 0) return `${h} sa ${m % 60} dk`;
-    return `${m} dk`;
+    if (d > 0) return tn("dur.dh", { d, h: h % 24 });
+    if (h > 0) return tn("dur.hm", { h, m: m % 60 });
+    return tn("dur.m", { m });
   }
 
   const pos = (t: number, a: number, b: number) => ((t - a) / (b - a || 1)) * 100;
@@ -98,10 +78,10 @@
       list = await fetchStates(entityId, hours);
       winEnd = end;
       winStart = end - hours * 3600_000;
-      msg = list.length === 0 ? "Bu aralıkta kayıt yok" : "";
+      msg = list.length === 0 ? tn("bin.noRecord") : "";
     } catch (e) {
       list = [];
-      msg = "Geçmiş yüklenemedi: " + String(e);
+      msg = tn("sensor.histFail", { err: String(e) });
     }
     loading = false;
   }
@@ -135,17 +115,17 @@
         <span class="dot" class:on={active} class:alert={isAlert}></span>{nowLabel}
       </span>
     </div>
-    <button class="close" on:click={onClose} title="Kapat">✕</button>
+    <button class="close" on:click={onClose} title={$t("common.close")}>✕</button>
   </div>
 
   <div class="rng">
     {#each RANGES as r}
-      <button class:sel={hours === r.h} on:click={() => setRange(r.h)}>{r.label}</button>
+      <button class:sel={hours === r.h} on:click={() => setRange(r.h)}>{$t(r.label)}</button>
     {/each}
   </div>
 
   {#if loading}
-    <p class="hint">Yükleniyor…</p>
+    <p class="hint">{$t("common.loading")}</p>
   {:else if msg}
     <p class="hint">{msg}</p>
   {:else}
@@ -158,11 +138,11 @@
         ></div>
       {/each}
     </div>
-    <div class="xlab"><span>{fmtT(winStart, hours)}</span><span>şimdi</span></div>
+    <div class="xlab"><span>{fmtT(winStart, hours)}</span><span>{$t("bin.now")}</span></div>
 
     <div class="stats">
-      <div><span>Aktif süre</span><b>{fmtDur(onMs)}</b></div>
-      <div><span>Tetiklenme</span><b>{opened}</b></div>
+      <div><span>{$t("bin.activeTime")}</span><b>{fmtDur(onMs)}</b></div>
+      <div><span>{$t("bin.triggers")}</span><b>{opened}</b></div>
     </div>
 
     {#if changes.length}

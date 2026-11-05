@@ -2,6 +2,8 @@
   import { onDestroy } from "svelte";
   import type { HaEntity } from "$lib/ha";
   import { fetchHistory } from "$lib/history";
+  import { binInfo } from "$lib/tileKind";
+  import { t, tn } from "$lib/i18n";
   import type { Point } from "$lib/history";
 
   export let entityId: string;
@@ -12,28 +14,6 @@
   export let onRemove: () => void = () => {};
   export let onSpan: () => void = () => {};
 
-  // device_class -> [açıkken metin, kapalıyken metin, açıkken uyarı mı?]
-  const BIN: Record<string, [string, string, boolean]> = {
-    door: ["Açık", "Kapalı", false],
-    window: ["Açık", "Kapalı", false],
-    garage_door: ["Açık", "Kapalı", false],
-    opening: ["Açık", "Kapalı", false],
-    lock: ["Açık", "Kilitli", true],
-    motion: ["Hareket var", "Hareket yok", false],
-    occupancy: ["Dolu", "Boş", false],
-    presence: ["Evde", "Dışarıda", false],
-    moisture: ["Islak", "Kuru", true],
-    smoke: ["Duman var", "Temiz", true],
-    gas: ["Gaz var", "Temiz", true],
-    problem: ["Sorun var", "Sorun yok", true],
-    safety: ["Güvensiz", "Güvenli", true],
-    tamper: ["Kurcalandı", "Normal", true],
-    battery: ["Düşük", "Normal", true],
-    connectivity: ["Bağlı", "Bağlı değil", false],
-    power: ["Var", "Yok", false],
-    running: ["Çalışıyor", "Durdu", false],
-  };
-
   $: isBinary = entityId.startsWith("binary_sensor.");
   $: state = entity?.state ?? "";
   $: dead = !entity || state === "unavailable" || state === "unknown";
@@ -41,7 +21,7 @@
   $: isNumeric = !isBinary && state !== "" && Number.isFinite(num);
   $: unit = entity?.attributes.unit_of_measurement ?? "";
   $: name = entity?.attributes.friendly_name ?? entityId;
-  $: bin = BIN[entity?.attributes.device_class ?? ""] ?? ["Açık", "Kapalı", false];
+  $: bin = binInfo(entity?.attributes.device_class, $t);
   $: active = isBinary && state === "on";
   $: isAlert = active && bin[2];
   $: big = dead ? "—" : isBinary ? (active ? bin[0] : bin[1]) : isNumeric ? fmt(num) : state;
@@ -78,10 +58,10 @@
   async function load() {
     try {
       pts = downsample(await fetchHistory(entityId, 24), 48);
-      histMsg = pts.length < 2 ? "Grafik için yeterli veri yok" : "";
+      histMsg = pts.length < 2 ? tn("sensor.noChart") : "";
     } catch (e) {
       pts = [];
-      histMsg = "Grafik yüklenemedi: " + String(e);
+      histMsg = tn("sensor.chartFail", { err: String(e) });
     }
   }
 
@@ -123,17 +103,17 @@
 <div class="stile" class:active class:alert={isAlert} class:dead class:missing={loaded && !entity}>
   {#if editing}
     <div class="edit">
-      <button on:click|stopPropagation={onSpan} title={span === 2 ? "Yarım genişliğe düşür" : "Tam genişliğe çıkar (grafik)"}>
+      <button on:click|stopPropagation={onSpan} title={span === 2 ? $t("tile.halve") : $t("tile.widenChart")}>
         {span === 2 ? "½" : "↔"}
       </button>
-      <button class="del" on:click|stopPropagation={onRemove} title="Kaldır">✕</button>
+      <button class="del" on:click|stopPropagation={onRemove} title={$t("common.remove")}>✕</button>
     </div>
   {/if}
 
   <span class="name">{name}</span>
 
   {#if !entity}
-    <span class="sub">{loaded ? "HA'da bulunamadı" : "yükleniyor…"}</span>
+    <span class="sub">{loaded ? $t("common.notFound") : $t("common.loadingLc")}</span>
   {:else if isBinary}
     <div class="row">
       <span class="dot" class:on={active} class:alert={isAlert}></span>

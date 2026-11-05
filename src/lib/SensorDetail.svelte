@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import type { HaEntity } from "$lib/ha";
   import { fetchHistory, downsample } from "$lib/history";
+  import { t, tn, locale } from "$lib/i18n";
   import type { Point } from "$lib/history";
 
   export let entityId: string;
@@ -9,9 +10,9 @@
   export let onClose: () => void = () => {};
 
   const RANGES = [
-    { h: 6, label: "6 sa" },
-    { h: 24, label: "24 sa" },
-    { h: 168, label: "7 gün" },
+    { h: 6, label: "range.6h" as const },
+    { h: 24, label: "range.24h" as const },
+    { h: 168, label: "range.7d" as const },
   ];
   const W = 360;
   const H = 140;
@@ -39,7 +40,7 @@
 
   const fmtT = (t: number) =>
     new Date(t).toLocaleString(
-      "tr-TR",
+      locale(),
       hours > 24
         ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }
         : { hour: "2-digit", minute: "2-digit" }
@@ -49,10 +50,10 @@
     try {
       const raw = await fetchHistory(entityId, hours);
       pts = downsample(raw, 160);
-      msg = pts.length < 2 ? "Bu aralıkta yeterli veri yok" : "";
+      msg = pts.length < 2 ? tn("sensor.noRange") : "";
     } catch (e) {
       pts = [];
-      msg = "Geçmiş yüklenemedi: " + String(e);
+      msg = tn("sensor.histFail", { err: String(e) });
     }
     loading = false;
   }
@@ -113,19 +114,19 @@
       <span class="name">{name}</span>
       <span class="cur">{current}<small>{u}</small></span>
     </div>
-    <button class="close" on:click={onClose} title="Kapat">✕</button>
+    <button class="close" on:click={onClose} title={$t("common.close")}>✕</button>
   </div>
 
   <div class="rng">
     {#each RANGES as r}
-      <button class:sel={hours === r.h} on:click={() => setRange(r.h)}>{r.label}</button>
+      <button class:sel={hours === r.h} on:click={() => setRange(r.h)}>{$t(r.label)}</button>
     {/each}
   </div>
 
   {#if loading}
-    <p class="hint">Yükleniyor…</p>
+    <p class="hint">{$t("common.loading")}</p>
   {:else if msg || !chart}
-    <p class="hint">{msg || "Veri yok"}</p>
+    <p class="hint">{msg || $t("common.noData")}</p>
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="plot" on:mousemove={onMove} on:mouseleave={() => (hover = null)}>
@@ -151,9 +152,9 @@
     <div class="xlab"><span>{fmtT(chart.t0)}</span><span>{fmtT(chart.t1)}</span></div>
 
     <div class="stats">
-      <div><span>En düşük</span><b>{fmt(chart.lo)}{u}</b></div>
-      <div><span>Ortalama</span><b>{fmt(chart.avg)}{u}</b></div>
-      <div><span>En yüksek</span><b>{fmt(chart.hi)}{u}</b></div>
+      <div><span>{$t("sensor.min")}</span><b>{fmt(chart.lo)}{u}</b></div>
+      <div><span>{$t("sensor.avg")}</span><b>{fmt(chart.avg)}{u}</b></div>
+      <div><span>{$t("sensor.max")}</span><b>{fmt(chart.hi)}{u}</b></div>
     </div>
   {/if}
 </div>

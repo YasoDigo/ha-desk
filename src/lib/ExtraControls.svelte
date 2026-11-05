@@ -2,7 +2,8 @@
   import { onDestroy } from "svelte";
   import { ha } from "$lib/ha";
   import type { HaEntity } from "$lib/ha";
-  import { kindOf, domainOf, HVAC_TR } from "$lib/tileKind";
+  import { kindOf, domainOf, hvacLabel } from "$lib/tileKind";
+  import { t } from "$lib/i18n";
   import Icon from "$lib/Icon.svelte";
 
   // Perde, kilit, klima ve medya oynatıcı kontrolleri
@@ -147,13 +148,13 @@
 {#if kind === "cover"}
   <div class="btns">
     {#if cOpen}
-      <button {disabled} title="Aç" on:click={() => call("open_cover")}><Icon name="up" /></button>
+      <button {disabled} title={$t("cover.open")} on:click={() => call("open_cover")}><Icon name="up" /></button>
     {/if}
     {#if cStop}
-      <button {disabled} title="Durdur" on:click={() => call("stop_cover")}><Icon name="stop" /></button>
+      <button {disabled} title={$t("cover.stop")} on:click={() => call("stop_cover")}><Icon name="stop" /></button>
     {/if}
     {#if cClose}
-      <button {disabled} title="Kapat" on:click={() => call("close_cover")}><Icon name="down" /></button>
+      <button {disabled} title={$t("cover.close")} on:click={() => call("close_cover")}><Icon name="down" /></button>
     {/if}
   </div>
   {#if cPos}
@@ -165,22 +166,22 @@
 {:else if kind === "lock"}
   <div class="btns">
     <button class="txt" class:warn={confirm} disabled={disabled || busy} on:click={toggleLock}>
-      {s === "locked" ? (confirm ? "Emin misin? Kilidi aç" : "Kilidi aç") : "Kilitle"}
+      {s === "locked" ? (confirm ? $t("lock.confirm") : $t("lock.unlock")) : $t("lock.lock")}
     </button>
   </div>
 {:else if kind === "climate"}
   {#if attrTarget !== null}
     <div class="temp">
-      <button {disabled} title="Azalt" on:click={() => nudge(-1)}><Icon name="minus" /></button>
+      <button {disabled} title={$t("climate.dec")} on:click={() => nudge(-1)}><Icon name="minus" /></button>
       <span class="tv">{target.toFixed(step < 1 ? 1 : 0)}°</span>
-      <button {disabled} title="Artır" on:click={() => nudge(1)}><Icon name="plus" /></button>
+      <button {disabled} title={$t("climate.inc")} on:click={() => nudge(1)}><Icon name="plus" /></button>
     </div>
   {/if}
   {#if modes.length > 1}
     <div class="chips">
       {#each modes as m}
         <button class="chip" class:cur={m === s} {disabled} on:click={() => call("set_hvac_mode", { hvac_mode: m })}>
-          {HVAC_TR[m] ?? m}
+          {hvacLabel(m, $t)}
         </button>
       {/each}
     </div>
@@ -188,28 +189,28 @@
 {:else if kind === "media"}
   <div class="btns">
     {#if mPower}
-      <button {disabled} title={mOff ? "Aç" : "Kapat"} on:click={() => call(mOff ? "turn_on" : "turn_off")}>
+      <button {disabled} title={mOff ? $t("media.on") : $t("media.off")} on:click={() => call(mOff ? "turn_on" : "turn_off")}>
         <Icon name="power" />
       </button>
     {/if}
     {#if !mOff && mPrev}
-      <button {disabled} title="Önceki" on:click={() => call("media_previous_track")}><Icon name="prev" /></button>
+      <button {disabled} title={$t("media.prev")} on:click={() => call("media_previous_track")}><Icon name="prev" /></button>
     {/if}
     {#if !mOff && mPlay}
-      <button {disabled} title={s === "playing" ? "Duraklat" : "Oynat"} on:click={() => call("media_play_pause")}>
+      <button {disabled} title={s === "playing" ? $t("media.pause") : $t("media.play")} on:click={() => call("media_play_pause")}>
         <Icon name={s === "playing" ? "pause" : "play"} />
       </button>
     {/if}
     {#if !mOff && mNext}
-      <button {disabled} title="Sonraki" on:click={() => call("media_next_track")}><Icon name="next" /></button>
+      <button {disabled} title={$t("media.next")} on:click={() => call("media_next_track")}><Icon name="next" /></button>
     {/if}
-    <button class:spin={refreshing} disabled={disabled || refreshing} title="Durumu yenile" on:click={refresh}>
+    <button class:spin={refreshing} disabled={disabled || refreshing} title={$t("media.refresh")} on:click={refresh}>
       <Icon name="refresh" />
     </button>
   </div>
   {#if !mOff && mSrc.length}
     <select class="src" {disabled} on:change={onSource}>
-      <option value="" disabled selected={!a.source}>Kaynak / cihaz seç…</option>
+      <option value="" disabled selected={!a.source}>{$t("media.source")}</option>
       {#each mSrc as o}
         <option value={o} selected={o === a.source}>{o}</option>
       {/each}

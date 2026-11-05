@@ -4,6 +4,7 @@
   import {
     kindOf, domainOf, pctOf, setPct, press, hasDetail, activeOf, describe, EXTRA_KINDS,
   } from "$lib/tileKind";
+  import { t } from "$lib/i18n";
   import LightPanel from "$lib/LightPanel.svelte";
   import ExtraControls from "$lib/ExtraControls.svelte";
 
@@ -52,15 +53,15 @@
 
   // "Çalıştır" gibi bilgi satırı sadece düzenleme modunda görünür
   $: sub = !entity
-    ? loaded ? "HA'da bulunamadı" : "yükleniyor…"
+    ? loaded ? $t("common.notFound") : $t("common.loadingLc")
     : unavailable
-      ? "Kullanılamıyor"
+      ? $t("state.unavailable")
       : kind === "toggle" || kind === "dimmer"
-        ? on ? "Açık" : "Kapalı"
+        ? on ? $t("state.on") : $t("state.off")
         : kind === "button"
-          ? editing ? "Çalıştır" : ""
+          ? editing ? $t("tile.run") : ""
           : isExtra
-            ? describe(entity)
+            ? describe(entity, $t)
             : kind === "sensor"
               ? `${entity.state} ${unit}`
               : "";
@@ -122,10 +123,10 @@
 >
   {#if editing}
     <div class="edit">
-      <button on:click|stopPropagation={onSpan} title={span === 2 ? "Yarım genişliğe düşür" : "Tam genişliğe çıkar"}>
+      <button on:click|stopPropagation={onSpan} title={span === 2 ? $t("tile.halve") : $t("tile.widen")}>
         {span === 2 ? "½" : "↔"}
       </button>
-      <button class="del" on:click|stopPropagation={onRemove} title="Kaldır">✕</button>
+      <button class="del" on:click|stopPropagation={onRemove} title={$t("common.remove")}>✕</button>
     </div>
   {/if}
 
@@ -134,7 +135,7 @@
       class="det"
       class:open={expanded}
       on:click|stopPropagation={onDetail}
-      title={expanded ? "Kapat" : "Renk ve ayrıntılar"}
+      title={expanded ? $t("common.close") : $t("tile.details")}
     >
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <line x1="4" y1="7" x2="20" y2="7" /><circle cx="9" cy="7" r="2.2" fill="currentColor" />

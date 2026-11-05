@@ -3,6 +3,7 @@
   import { ha } from "$lib/ha";
   import type { HaEntity } from "$lib/ha";
   import { pctOf, setPct, lightCaps } from "$lib/tileKind";
+  import { t } from "$lib/i18n";
 
   export let entityId: string;
   export let entity: HaEntity;
@@ -52,11 +53,11 @@
 
 <div class="panel" bind:this={root}>
   {#if unavailable}
-    <p class="hint">Kullanılamıyor</p>
+    <p class="hint">{$t("state.unavailable")}</p>
   {:else}
     {#if caps.brightness}
       <div class="ctl">
-        <div class="lbl"><span>Parlaklık</span><b class:act={"bri" in live}>%{bri}</b></div>
+        <div class="lbl"><span>{$t("light.brightness")}</span><b class:act={"bri" in live}>%{bri}</b></div>
         <input
           type="range" min="0" max="100" step="1" value={bri}
           on:input={(e) => drag("bri", e)}
@@ -67,7 +68,7 @@
 
     {#if caps.colorTemp}
       <div class="ctl">
-        <div class="lbl"><span>Renk sıcaklığı</span><b class:act={"kel" in live}>{kel} K</b></div>
+        <div class="lbl"><span>{$t("light.colorTemp")}</span><b class:act={"kel" in live}>{kel} K</b></div>
         <input
           type="range" class="grad" style="background:{KELVIN_GRAD}"
           min={caps.minK} max={caps.maxK} step="1" value={kel}
@@ -80,17 +81,17 @@
     {#if caps.color}
       <div class="ctl">
         <div class="lbl">
-          <span>Renk</span>
+          <span>{$t("light.color")}</span>
           <span class="sw" style="background:hsl({hue},100%,{100 - sat / 2}%)"></span>
         </div>
-        <div class="lbl sm"><span>Ton</span><b class:act={"hue" in live}>{hue}°</b></div>
+        <div class="lbl sm"><span>{$t("light.hue")}</span><b class:act={"hue" in live}>{hue}°</b></div>
         <input
           type="range" class="grad" style="background:{HUE_GRAD}"
           min="0" max="360" step="1" value={hue}
           on:input={(e) => drag("hue", e)}
           on:change={() => release("hue", (v) => turnOn({ hs_color: [v, sat] }))}
         />
-        <div class="lbl sm"><span>Doygunluk</span><b class:act={"sat" in live}>%{sat}</b></div>
+        <div class="lbl sm"><span>{$t("light.sat")}</span><b class:act={"sat" in live}>%{sat}</b></div>
         <input
           type="range" class="grad"
           style="background:linear-gradient(to right,#ffffff,hsl({hue},100%,50%))"
@@ -103,7 +104,7 @@
 
     {#if caps.effects.length}
       <div class="ctl">
-        <div class="lbl"><span>Efekt</span></div>
+        <div class="lbl"><span>{$t("light.effect")}</span></div>
         <select on:change={(e) => turnOn({ effect: e.currentTarget.value })}>
           {#each caps.effects as fx}
             <option value={fx} selected={fx === entity.attributes.effect}>{fx}</option>
