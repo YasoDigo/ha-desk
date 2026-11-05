@@ -23,6 +23,7 @@
   import { startNotifications } from "$lib/notify";
   import { t, tn } from "$lib/i18n";
   import { startMobile } from "$lib/mobile";
+  import { areas, entityArea } from "$lib/areas";
 
   const SENSOR_DOMAINS = ["sensor", "binary_sensor"];
 
@@ -37,6 +38,7 @@
   let pickGroup = "";
   let filter = "";
   let domainFilter = "";
+  let areaFilter = ""; // "" = tüm odalar, "__none" = odası olmayanlar, diğerleri oda kimliği
 
   let hasToken = false;
   let primary = "";
@@ -222,6 +224,7 @@
     pickGroup = gid;
     filter = "";
     domainFilter = "";
+    areaFilter = "";
     picking = true;
   }
 
@@ -238,16 +241,41 @@
     (e) => section !== "sensors" || SENSOR_DOMAINS.includes(domainOf(e.entity_id))
   );
   $: domains = [...new Set(pool.map((e) => domainOf(e.entity_id)))].sort();
-  $: candidates = picking
+  $: filtered = picking
     ? pool
         .filter((e) => !used.has(e.entity_id))
         .filter((e) => !domainFilter || domainOf(e.entity_id) === domainFilter)
         .filter((e) =>
+          areaFilter === ""
+            ? true
+            : areaFilter === "__none"
+              ? !$entityArea[e.entity_id]
+              : $entityArea[e.entity_id] === areaFilter
+        )
+        .filter((e) =>
           (nameOf(e) + " " + e.entity_id).toLowerCase().includes(filter.toLowerCase())
         )
         .sort((a, b) => nameOf(a).localeCompare(nameOf(b), "tr"))
-        .slice(0, 100)
     : [];
+  $: candidates = filtered.slice(0, 100);
+
+  // "Odadakileri ekle": kutucuklarda sadece kumanda edilebilen türler, sensörlerde hepsi
+  const BULK = new Set([
+    "light", "switch", "fan", "cover", "lock", "climate", "media_player", "scene", "script",
+    "input_boolean", "number", "input_number", "select", "input_select", "button", "input_button",
+  ]);
+  $: roomBulk =
+    areaFilter && areaFilter !== "__none"
+      ? filtered.filter((e) => section === "sensors" || BULK.has(domainOf(e.entity_id)))
+      : [];
+
+  function addRoom() {
+    const list = section === "sensors" ? $sensorGroups : $groups;
+    const grp = list.find((g) => g.id === pickGroup);
+    const room = $areas.find((a) => a.id === areaFilter);
+    if (grp && !grp.title && room) ops.renameGroup(pickGroup, room.name);
+    for (const e of roomBulk) ops.addTile(e.entity_id, pickGroup);
+  }
 </script>
 
 <svelte:window on:keydown|capture={onKeyDown} on:blur={onWindowBlur} />
@@ -423,6 +451,18 @@
             {#each domains as d}<option value={d}>{d}</option>{/each}
           </select>
         </div>
+        {#if $areas.length}
+          <div class="prow">
+            <select class="grow" bind:value={areaFilter}>
+              <option value="">{$t("area.all")}</option>
+              {#each $areas as a}<option value={a.id}>{a.name}</option>{/each}
+              <option value="__none">{$t("area.none")}</option>
+            </select>
+            {#if roomBulk.length}
+              <button on:click={addRoom}>{$t("area.addAll", { n: roomBulk.length })}</button>
+            {/if}
+          </div>
+        {/if}
         <ul>
           {#each candidates as e (e.entity_id)}
             <li>

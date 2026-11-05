@@ -289,4 +289,13 @@ export const en: Partial<Record<Key, string>> = {
   "ha.tokenInvalid": "Invalid token",
   "ha.cmdError": "Command error",
   "ha.pingTimeout": "ping timed out",
+  "pal.assistAsk": "Ask Assist: {q}",
+  "pal.assistBusy": "Assist is thinking…",
+  "pal.assistEmpty": "Assist gave no answer.",
+  "pal.assistFail": "Assist could not answer: {err}",
+  "hint.assist": "Enter ask Assist",
+  "hint.assistAgain": "Enter ask again · Esc back",
+  "area.all": "All rooms",
+  "area.none": "No room",
+  "area.addAll": "Add all in room ({n})",
 };

@@ -7,6 +7,8 @@
   import type { HaEntity } from "$lib/ha";
   import { domainOf, kindOf, hasDetail, press, hvacLabel, stateText } from "$lib/tileKind";
   import { settings } from "$lib/config";
+  import { areaNames } from "$lib/areas";
+  import { askAssist } from "$lib/assist";
   import { t, tn } from "$lib/i18n";
   import type { Key, TFn } from "$lib/i18n";
   import Tile from "$lib/Tile.svelte";
@@ -49,6 +51,7 @@
     name: string;
     fname: string;
     hay: string;
+    area: string;
     meta: { label: string; icon: string };
   };
 
@@ -103,21 +106,22 @@
     return s;
   }
 
-  function toItem(e: HaEntity, tf: TFn): Item {
+  function toItem(e: HaEntity, tf: TFn, areas: Record<string, string>): Item {
     const name = String(e.attributes.friendly_name ?? e.entity_id);
     const m = META[domainOf(e.entity_id)];
     const meta = { icon: m.icon, label: tf(m.label) };
-    return { e, name, fname: fold(name), hay: fold(`${name} ${e.entity_id} ${meta.label}`), meta };
+    const area = areas[e.entity_id] ?? "";
+    return { e, name, fname: fold(name), hay: fold(`${name} ${e.entity_id} ${meta.label} ${area}`), area, meta };
   }
 
   $: items = Object.values($entities)
     .filter((e) => DOMAINS[domainOf(e.entity_id)])
-    .map((e) => toItem(e, $t));
+    .map((e) => toItem(e, $t, $areaNames));
 
   $: sensorItems = withSensors
     ? Object.values($entities)
         .filter((e) => SENSOR_DOMAINS[domainOf(e.entity_id)])
-        .map((e) => toItem(e, $t))
+        .map((e) => toItem(e, $t, $areaNames))
     : [];
 
   $: tokens = fold(query).split(/\s+/).filter(Boolean);
@@ -140,6 +144,36 @@
     .map((x) => x.it);
 
   $: if (sel >= results.length) sel = Math.max(0, results.length - 1);
+
+  // Hiçbir şey bulunamazsa yazılan metin Assist'e sorulabilir ("?" ile başlayan metin her zaman Assist'e gider)
+  $: assistText = results.length === 0 ? query.replace(/^\?\s*/, "").trim() : "";
+  let assistView = false;
+  let assistBusy = false;
+  let assistAsked = "";
+  let assistReply = "";
+  let assistErr = "";
+
+  async function ask(text: string) {
+    text = text.trim();
+    if (!text || assistBusy) return;
+    if ($status !== "connected") {
+      note = tn("pal.notConnected");
+      return;
+    }
+    assistView = true;
+    assistBusy = true;
+    assistAsked = text;
+    assistReply = "";
+    assistErr = "";
+    try {
+      assistReply = (await askAssist(text)) || tn("pal.assistEmpty");
+    } catch (e) {
+      assistErr = tn("pal.assistFail", { err: e instanceof Error ? e.message : String(e) });
+    }
+    assistBusy = false;
+    await tick();
+    input?.select(); // devam sorusu için metin seçili kalır
+  }
 
   $: dEntity = detailId ? $entities[detailId] : undefined;
   $: dm = detailId ? META[domainOf(detailId)] : undefined;
@@ -231,6 +265,16 @@
   }
 
   function onKey(ev: KeyboardEvent) {
+    if (assistView) {
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        assistView = false;
+      } else if (ev.key === "Enter") {
+        ev.preventDefault();
+        ask(query.replace(/^\?\s*/, ""));
+      }
+      return;
+    }
     if (detailId) return;
     const n = results.length;
     if (ev.key === "ArrowDown" || (ev.key === "Tab" && !ev.shiftKey)) {
@@ -261,6 +305,7 @@
       ev.preventDefault();
       const it = results[sel];
       if (it) activate(it.e, ev.shiftKey);
+      else if (assistText) ask(assistText);
     } else if (ev.key === "Escape") {
       ev.preventDefault();
       close();
@@ -335,6 +380,7 @@
     sel = 0;
     note = "";
     detailId = null;
+    assistView = false;
     recent = loadRecent();
     await tick();
     if (listEl) listEl.scrollTop = 0;
@@ -374,6 +420,18 @@
     />
   </div>
 
+  {#if assistView}
+    <div class="assist">
+      <div class="aq">{assistAsked}</div>
+      {#if assistBusy}
+        <div class="abusy"><span class="spin"></span>{$t("pal.assistBusy")}</div>
+      {:else if assistErr}
+        <div class="aerr">{assistErr}</div>
+      {:else}
+        <div class="areply">{assistReply}</div>
+      {/if}
+    </div>
+  {:else}
   <div class="list" bind:this={listEl}>
     {#each results as it, i (it.e.entity_id)}
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -386,7 +444,7 @@
         <span class="ico">{it.meta.icon}</span>
         <span class="txt">
           <span class="name">{it.name}</span>
-          <span class="id">{it.e.entity_id}</span>
+          <span class="id">{it.e.entity_id}{it.area ? " · " + it.area : ""}</span>
         </span>
         {#if stateLabel(it, $t)}
           <span class="pill" class:on={it.e.state === "on"}>{stateLabel(it, $t)}</span>
@@ -407,7 +465,15 @@
         {/if}
       </div>
     {/each}
+    {#if assistText && $status === "connected"}
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+      <div class="row sel" on:click={() => ask(assistText)}>
+        <span class="ico">✨</span>
+        <span class="txt"><span class="name">{$t("pal.assistAsk", { q: assistText })}</span></span>
+      </div>
+    {/if}
   </div>
+  {/if}
 
   {#if detailId}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
@@ -450,8 +516,12 @@
   <div class="foot">
     {#if note}
       <span class="warn">{note}</span>
+    {:else if assistView}
+      <span>{$t("hint.assistAgain")}</span>
     {:else if detailId}
       <span>{$t("pal.back")}</span>
+    {:else if assistText && results.length === 0}
+      <span>{$t("hint.assist")} · {$t("hint.esc")}</span>
     {:else}
       <span>{$t("pal.select")} · {hintFor(results[sel], $t)}</span>
     {/if}
@@ -553,6 +623,18 @@
   }
   .pill.on { color: var(--accent); border-color: var(--accent); }
   .dom { font-size: 11.5px; color: var(--muted); min-width: 64px; text-align: right; }
+
+  .assist { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .aq { font-size: 12.5px; color: var(--muted); }
+  .areply { font-size: 15.5px; line-height: 1.45; white-space: pre-wrap; }
+  .aerr { font-size: 13.5px; color: #e5484d; }
+  .abusy { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+  .spin {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   .more {
     background: transparent;

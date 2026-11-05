@@ -286,6 +286,15 @@ export const tr = {
   "ha.tokenInvalid": "Token geçersiz",
   "ha.cmdError": "Komut hatası",
   "ha.pingTimeout": "ping zaman aşımı",
+  "pal.assistAsk": "Assist'e sor: {q}",
+  "pal.assistBusy": "Assist düşünüyor…",
+  "pal.assistEmpty": "Assist yanıt vermedi.",
+  "pal.assistFail": "Assist yanıt veremedi: {err}",
+  "hint.assist": "Enter Assist'e sor",
+  "hint.assistAgain": "Enter yeni soru · Esc geri",
+  "area.all": "Tüm odalar",
+  "area.none": "Odası olmayanlar",
+  "area.addAll": "Odadakileri ekle ({n})",
 } satisfies Record<string, string>;
 
 export type Key = keyof typeof tr;
