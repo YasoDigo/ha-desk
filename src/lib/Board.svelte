@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "$lib/Icon.svelte";
   import { dndzone, SHADOW_ITEM_MARKER_PROPERTY_NAME } from "svelte-dnd-action";
   import { flip } from "svelte/animate";
   import { fade, fly } from "svelte/transition";
@@ -137,7 +138,7 @@
     >
       {#if editing}
         <div class="ghead">
-          <span class="grip" title={$tt("board.dragGroup")}>⠿</span>
+          <span class="grip" title={$tt("board.dragGroup")}><Icon name="grip" size={16} /></span>
           <input
             class="gtitle"
             value={g.title}
@@ -145,11 +146,11 @@
             on:change={(e) => ops.renameGroup(g.id, e.currentTarget.value)}
           />
           {#if kind === "tiles"}
-            <span class="gm" title={$tt("board.masterCount")}>⏻ {g.master.length}</span>
+            <span class="gm" title={$tt("board.masterCount")}><Icon name="power" size={13} />{g.master.length}</span>
           {/if}
-          <button class="icon" title={$tt("common.add")} on:click={() => onPick(g.id)}>+</button>
+          <button class="icon" title={$tt("common.add")} on:click={() => onPick(g.id)}><Icon name="plus" size={16} /></button>
           {#if local.length > 1}
-            <button class="icon" title={$tt("board.deleteGroup")} on:click={() => ops.removeGroup(g.id)}>✕</button>
+            <button class="icon" title={$tt("board.deleteGroup")} on:click={() => ops.removeGroup(g.id)}><Icon name="close" size={14} /></button>
           {/if}
         </div>
       {:else if g.title || (kind === "tiles" && memberIds(g).length)}
@@ -196,7 +197,7 @@
                   class:on={g.master.includes(t.id)}
                   title={$tt("board.link")}
                   on:click|stopPropagation={() => ops.toggleMaster(g.id, t.id)}
-                >⏻</button>
+                ><Icon name="power" size={12} /></button>
               {/if}
               <Tile
                 entityId={t.entity_id}
@@ -251,66 +252,56 @@
 {/if}
 
 <style>
-  .hint { opacity: 0.65; font-size: 13px; }
+  .hint { color: var(--muted); font-size: 13px; line-height: 1.5; padding: 8px 4px; }
 
-  .group { margin-bottom: 14px; }
+  .group { margin-bottom: 16px; }
   .group.hide { display: none; }
 
-  .gview-row { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 6px 2px; }
-  .gview { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; opacity: 0.7; }
+  .gview-row { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 8px; min-height: 24px; }
+  .gview { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 
-  .ghead { display: flex; gap: 4px; align-items: center; margin-bottom: 6px; }
-  .gtitle,
-  .icon,
-  .add {
-    padding: 7px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--input-border);
-    background: var(--input-bg);
-    color: inherit;
-    font-size: 13px;
-    font-family: inherit;
-  }
-  .gtitle { flex: 1; min-width: 0; font-weight: 600; }
-  .icon { padding: 3px 9px; font-size: 14px; cursor: pointer; }
-  .icon:hover { background: var(--hover); }
-  .gm { font-size: 12px; opacity: 0.7; white-space: nowrap; user-select: none; }
+  .ghead { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+  .gtitle { flex: 1; min-width: 0; font-weight: 600; height: 32px; padding-top: 0; padding-bottom: 0; }
+  .icon { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; }
+  .gm { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--muted); white-space: nowrap; user-select: none; }
   .grip {
-    padding: 3px 9px;
-    font-size: 14px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 32px;
+    color: var(--muted);
     cursor: grab;
     user-select: none;
-    border: 1px solid var(--input-border);
-    border-radius: 8px;
-    background: var(--input-bg);
   }
 
+  /* grup anahtarı */
   .gswitch {
     position: relative;
-    width: 36px;
+    flex: none;
+    width: 34px;
     height: 20px;
     padding: 0;
-    border-radius: 10px;
-    border: 1px solid var(--input-border);
-    background: var(--input-bg);
-    cursor: pointer;
+    border-radius: 999px;
+    border: 0;
+    background: var(--raised);
+    transition: background 0.2s var(--ease);
   }
+  .gswitch:hover { background: color-mix(in srgb, var(--raised) 80%, var(--text)); }
   .gswitch .knob {
     position: absolute;
-    top: 2px;
-    left: 2px;
+    top: 3px;
+    left: 3px;
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: var(--text);
-    opacity: 0.7;
-    transition: transform 0.18s, background 0.18s;
+    background: var(--muted);
+    transition: transform 0.2s var(--ease), background 0.2s var(--ease);
   }
-  .gswitch.on { background: var(--accent); border-color: var(--accent); }
-  .gswitch.on .knob { transform: translateX(16px); background: #1a1a1a; opacity: 1; }
+  .gswitch.on, .gswitch.on:hover { background: var(--accent); }
+  .gswitch.on .knob { transform: translateX(14px); background: var(--on-accent); }
 
-  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 8px; }
-  .grid.editing { min-height: 56px; padding: 6px; border: 1px dashed var(--border); border-radius: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .grid.editing { min-height: 60px; row-gap: 20px; padding: 14px 8px 8px; border-radius: 22px; box-shadow: inset 0 0 0 1.5px var(--line); }
   .cell { position: relative; min-width: 0; display: flex; }
   .cell.clickable { cursor: pointer; }
   .cell > :global(.tile),
@@ -320,28 +311,30 @@
 
   .link {
     position: absolute;
-    top: -8px;
-    left: 6px;
+    top: -9px;
+    left: 8px;
     z-index: 3;
-    padding: 1px 6px;
-    font-size: 12px;
-    border-radius: 6px;
-    background: #444;
-    color: #fff;
-    border: 1px solid #666;
-    cursor: pointer;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 20px;
+    padding: 0;
+    border-radius: 999px;
+    background: var(--raised);
+    color: var(--text);
+    border: 1px solid var(--line);
   }
-  .link.on { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+  .link.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
   .add {
     width: 100%;
-    min-height: 64px;
-    border-style: dashed;
+    min-height: 56px;
+    border-radius: var(--r-tile);
     background: transparent;
-    border-radius: 12px;
-    opacity: 0.8;
-    cursor: pointer;
+    color: var(--muted);
+    box-shadow: inset 0 0 0 1.5px var(--line);
   }
+  .add:hover { background: var(--plate); color: var(--text); }
 
   /* sensör detayı: bulanık arkaplan üstünde odaklanmış kart */
   .backdrop {
@@ -353,29 +346,16 @@
     justify-content: center;
     padding: 56px 12px 12px;
     overflow-y: auto;
-    background: color-mix(in srgb, var(--bg) 55%, transparent);
-    backdrop-filter: blur(8px);
+    background: color-mix(in srgb, var(--bg) 62%, transparent);
+    backdrop-filter: blur(10px);
   }
-  .focus {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .focus > :global(.sdetail) {
-    border-radius: 12px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  }
+  .focus { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+  .focus > :global(.sdetail) { box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4); }
   .halink {
     align-self: flex-end;
-    padding: 5px 12px;
+    padding: 6px 12px;
     font-size: 12px;
-    font-family: inherit;
-    color: inherit;
-    border: 1px solid var(--input-border);
-    border-radius: 8px;
-    background: var(--input-bg);
-    cursor: pointer;
+    border-radius: 999px;
+    background: var(--raised);
   }
-  .halink:hover { background: var(--hover); }
 </style>

@@ -3,6 +3,7 @@ import type { Writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import { ha } from "./ha";
 import { tn } from "./i18n/core";
+import { hexToRgb, inkFor } from "./color";
 
 export type Tile = { id: string; entity_id: string; span?: 1 | 2 };
 export type Group = { id: string; title: string; tiles: Tile[]; master: string[] };
@@ -55,7 +56,7 @@ const VERSION = 1; // ileride format değişirse parse() içinde eski sürümler
 const defaults: Settings = {
   language: "auto",
   connection: { primaryUrl: "", fallbackUrl: "" },
-  appearance: { theme: "dark", accent: "#f0b429" },
+  appearance: { theme: "dark", accent: "#a8adb7" },
   palette: { sensors: false },
   notifications: { enabled: true, receive: false, mirror: false },
 };
@@ -426,6 +427,7 @@ export function applyAppearance(a: Settings["appearance"]) {
   const root = document.documentElement;
   root.dataset.theme = dark ? "dark" : "light";
   root.style.setProperty("--accent", a.accent);
+  root.style.setProperty("--on-accent", inkFor(hexToRgb(a.accent))); // vurgu üstündeki yazı rengi
 }
 
 settings.subscribe((s) => applyAppearance(s.appearance));

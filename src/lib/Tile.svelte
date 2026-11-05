@@ -5,6 +5,10 @@
     kindOf, domainOf, pctOf, setPct, press, hasDetail, activeOf, describe, EXTRA_KINDS,
   } from "$lib/tileKind";
   import { t } from "$lib/i18n";
+  import Icon from "$lib/Icon.svelte";
+  import { iconOf } from "$lib/icons";
+  import { marquee } from "$lib/marquee";
+  import { inkFor } from "$lib/color";
   import LightPanel from "$lib/LightPanel.svelte";
   import ExtraControls from "$lib/ExtraControls.svelte";
 
@@ -25,6 +29,8 @@
   $: kind = entity ? kindOf(entity) : null;
   $: name = entity?.attributes.friendly_name ?? entityId;
   $: on = entity ? activeOf(entity) : false;
+  // perde ve kilit "açık" olsa da dolmaz: sadece çerçevesi yanar (dolu zemin yanan lambalara ait)
+  $: soft = kind === "cover" || kind === "lock";
   $: isExtra = kind !== null && EXTRA_KINDS.includes(kind);
   $: canDetail = entity ? hasDetail(entity) : false;
   $: unavailable = entity?.state === "unavailable";
@@ -46,10 +52,13 @@
     entity.attributes.rgb_color.length === 3
       ? (entity.attributes.rgb_color as number[])
       : null;
-  $: level = kind === "dimmer" ? shown : pct;
-  $: glowStyle = rgb
-    ? `--glow: rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]}); --gbg: ${Math.round(12 + 18 * (level / 100))}%; --gsh: ${Math.round(20 + 40 * (level / 100))}%;`
-    : "";
+  // Renkli ışıkta kutucuk ışığın rengiyle dolar; yazı rengi o renge göre seçilir
+  $: glowStyle = rgb ? `--glow: rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]}); --chip-ink: ${inkFor(rgb)};` : "";
+
+  // Kaydırıcının dolu kısmı (yüzde)
+  $: lo = kind === "dimmer" ? 0 : Number(entity?.attributes.min ?? 0);
+  $: hi = kind === "dimmer" ? 100 : Number(entity?.attributes.max ?? 100);
+  $: fillPct = hi > lo ? Math.max(0, Math.min(100, ((shown - lo) / (hi - lo)) * 100)) : 0;
 
   // "Çalıştır" gibi bilgi satırı sadece düzenleme modunda görünür
   $: sub = !entity
@@ -110,43 +119,46 @@
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div
   class="tile"
-  class:on
+  class:on={on && !soft}
+  class:ring={on && soft}
   class:colored={!!rgb}
   class:expanded
   class:clickable
   class:compact={kind === "button"}
   class:unavailable
   class:missing={loaded && !entity}
-  class:has-det={canDetail && !editing}
   style={glowStyle}
   on:click={onTileClick}
 >
   {#if editing}
     <div class="edit">
       <button on:click|stopPropagation={onSpan} title={span === 2 ? $t("tile.halve") : $t("tile.widen")}>
-        {span === 2 ? "½" : "↔"}
+        <Icon name={span === 2 ? "shrink" : "expand"} size={13} />
       </button>
-      <button class="del" on:click|stopPropagation={onRemove} title={$t("common.remove")}>✕</button>
+      <button class="del" on:click|stopPropagation={onRemove} title={$t("common.remove")}><Icon name="close" size={12} /></button>
     </div>
   {/if}
 
-  {#if canDetail && !editing}
-    <button
-      class="det"
-      class:open={expanded}
-      on:click|stopPropagation={onDetail}
-      title={expanded ? $t("common.close") : $t("tile.details")}
-    >
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <line x1="4" y1="7" x2="20" y2="7" /><circle cx="9" cy="7" r="2.2" fill="currentColor" />
-        <line x1="4" y1="12" x2="20" y2="12" /><circle cx="15" cy="12" r="2.2" fill="currentColor" />
-        <line x1="4" y1="17" x2="20" y2="17" /><circle cx="8" cy="17" r="2.2" fill="currentColor" />
-      </svg>
-    </button>
-  {/if}
+  <div class="top">
+    <span class="chip"><Icon name={iconOf(entityId)} size={18} /></span>
+    {#if canDetail && !editing}
+      <button
+        class="det"
+        class:open={expanded}
+        on:click|stopPropagation={onDetail}
+        title={expanded ? $t("common.close") : $t("tile.details")}
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="4" y1="7" x2="20" y2="7" /><circle cx="9" cy="7" r="2.2" fill="currentColor" />
+          <line x1="4" y1="12" x2="20" y2="12" /><circle cx="15" cy="12" r="2.2" fill="currentColor" />
+          <line x1="4" y1="17" x2="20" y2="17" /><circle cx="8" cy="17" r="2.2" fill="currentColor" />
+        </svg>
+      </button>
+    {/if}
+  </div>
 
   <div class="head">
-    <span class="name">{name}</span>
+    <span class="name mq" use:marquee={name}><span class="mi">{name}</span></span>
     {#if sub}<span class="sub">{sub}</span>{/if}
   </div>
 
@@ -154,11 +166,13 @@
     {#if kind === "dimmer" || kind === "number"}
       <div class="srow">
         <input
+          class="fader"
           type="range"
           min={kind === "dimmer" ? 0 : entity.attributes.min ?? 0}
           max={kind === "dimmer" ? 100 : entity.attributes.max ?? 100}
           step={kind === "dimmer" ? 1 : entity.attributes.step ?? 1}
           value={shown}
+          style="--p: {fillPct}%"
           on:input={onInput}
           on:change={onChange}
         />
@@ -182,103 +196,145 @@
 
 <style>
   .tile {
+    /* kutucuk içindeki denetimlerin kullandığı renkler; açık durumda ters çevrilir */
+    --tile-bg: var(--plate);
+    --btn: var(--raised);
+    --trk: var(--field);
+    --fill: var(--accent);
     position: relative;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 8px;
     padding: 10px 12px;
-    min-height: 64px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    background: var(--tile-bg);
+    color: var(--text);
+    border-radius: var(--r-tile);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
+    transition: background 0.2s var(--ease), color 0.2s var(--ease), box-shadow 0.25s var(--ease),
+      transform 0.12s var(--ease);
   }
   .tile.clickable { cursor: pointer; }
-  .tile.compact { min-height: 44px; padding: 8px 12px; justify-content: center; }
-  .tile.on { background: var(--card-on); border-color: var(--accent); }
-  .tile.on.colored {
-    background: color-mix(in srgb, var(--glow) var(--gbg), var(--card));
-    border-color: var(--glow);
-    box-shadow: 0 0 14px color-mix(in srgb, var(--glow) var(--gsh), transparent);
-  }
-  .tile.colored .srow input[type="range"] { accent-color: var(--glow); }
-  .tile.expanded { border-color: var(--accent); }
+  .tile.clickable:active { transform: scale(0.985); }
   .tile.unavailable { opacity: 0.5; }
-  .tile.missing { border-style: dashed; opacity: 0.7; }
+  .tile.missing { box-shadow: inset 0 0 0 1.5px var(--line); background: transparent; opacity: 0.75; }
 
-  .head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .has-det .name { padding-right: 28px; }
+  /* açık kutucuk: zemin hafifçe boyanır, ikon rozeti yanar (lambada kendi rengiyle) */
+  .tile.on {
+    --chipc: var(--accent);
+    --chip-ink: var(--on-accent);
+    --tile-bg: var(--on-tint);
+    --btn: color-mix(in srgb, var(--chipc) 16%, var(--raised));
+    --trk: color-mix(in srgb, var(--chipc) 14%, var(--field));
+    --fill: var(--chipc);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chipc) 28%, transparent);
+  }
+  .tile.on.colored {
+    --chipc: var(--glow);
+    --tile-bg: color-mix(in srgb, var(--glow) 13%, var(--plate));
+  }
+  .tile.ring {
+    background: var(--on-tint);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  .tile.ring .chip { color: var(--accent-text); }
+
+  .top { display: contents; }
+  .chip { grid-column: 1; grid-row: 1; }
+  .head { grid-column: 2; grid-row: 1; }
+  .det { grid-column: 3; grid-row: 1; }
+  .tile > :global(:not(.top):not(.head):not(.edit)) { grid-column: 1 / -1; }
+  .chip {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: var(--btn);
+    color: var(--muted);
+    transition: background 0.2s var(--ease), color 0.2s var(--ease);
+  }
+  .tile.on .chip {
+    background: var(--chipc);
+    color: var(--chip-ink);
+    box-shadow: 0 0 14px -2px color-mix(in srgb, var(--chipc) 70%, transparent);
+  }
+
+  .head { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .name {
     font-size: 13px;
     font-weight: 600;
+    line-height: 1.25;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .sub {
-    font-size: 11px;
-    opacity: 0.65;
+    font-size: 11.5px;
+    color: var(--muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+
   .srow { display: flex; align-items: center; gap: 8px; }
-  .srow input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .srow .fader { flex: 1; min-width: 0; }
   .val {
-    min-width: 44px;
+    min-width: 40px;
     text-align: right;
     font-size: 12px;
     font-variant-numeric: tabular-nums;
-    opacity: 0.75;
-    transition: color 0.1s;
+    opacity: 0.8;
   }
-  .val.active { opacity: 1; color: var(--accent); font-weight: 700; font-size: 14px; }
+  .val.active { opacity: 1; font-weight: 700; }
 
   select {
     width: 100%;
-    padding: 4px 6px;
-    background: var(--input-bg);
+    padding: 6px 9px;
+    font-size: 12.5px;
+    border-radius: 9px;
+    background: var(--btn);
     color: inherit;
-    border: 1px solid var(--border);
-    border-radius: 6px;
   }
+  select option { color: var(--text); background: var(--plate); }
 
   .edit {
     position: absolute;
-    top: -8px;
-    right: 6px;
+    top: -9px;
+    right: 8px;
     display: flex;
-    gap: 3px;
+    gap: 4px;
     z-index: 2;
   }
   .edit button {
-    padding: 1px 7px;
-    font-size: 12px;
-    background: #444;
-    color: #fff;
-    border: 1px solid #666;
-    border-radius: 6px;
-    cursor: pointer;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 20px;
+    padding: 0;
+    color: var(--text);
+    background: var(--raised);
+    border: 1px solid var(--line);
+    border-radius: 999px;
   }
-  .edit .del { background: #7a2b2b; }
+  .edit .del { color: var(--danger); }
 
   .det {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 3px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    background: color-mix(in srgb, var(--card) 70%, transparent);
-    opacity: 0.9;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: inherit;
+    opacity: 0.7;
   }
-  .det:hover { opacity: 1; }
-  .det.open { color: var(--accent); border-color: var(--accent); }
+  .det:hover { opacity: 1; background: var(--btn) !important; }
+  .det.open { opacity: 1; background: var(--btn); }
 
-  .inner { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .inner { padding-top: 10px; border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent); }
 </style>

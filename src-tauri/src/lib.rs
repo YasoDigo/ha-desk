@@ -14,6 +14,31 @@ static LAST_HIDE: Mutex<Option<Instant>> = Mutex::new(None);
 // Sabitlenmişse popup dışarı tıklayınca kapanmaz (palet bundan etkilenmez)
 static PINNED: AtomicBool = AtomicBool::new(false);
 
+// Görev çubuğu açık temada mı? (Windows kaydından okunur)
+fn taskbar_is_light() -> bool {
+    use std::os::windows::process::CommandExt;
+    std::process::Command::new("reg")
+        .args([
+            "query",
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            "/v",
+            "SystemUsesLightTheme",
+        ])
+        .creation_flags(0x0800_0000) // pencere açma
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains("0x1"))
+        .unwrap_or(false)
+}
+
+fn tray_image(light: bool) -> tauri::image::Image<'static> {
+    let bytes: &[u8] = if light {
+        include_bytes!("../icons/tray-light.png")
+    } else {
+        include_bytes!("../icons/tray-dark.png")
+    };
+    tauri::image::Image::from_bytes(bytes).expect("tepsi ikonu okunamadı")
+}
+
 const KEYRING_SERVICE: &str = "ha-desk";
 const KEYRING_USER: &str = "ha-token";
 
@@ -273,8 +298,8 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Çıkış", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;
 
-            TrayIconBuilder::with_id("main")
-                .icon(app.default_window_icon().unwrap().clone())
+            let tray = TrayIconBuilder::with_id("main")
+                .icon(tray_image(taskbar_is_light()))
                 .tooltip("HA Desk")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -314,6 +339,20 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // Windows temasını değiştirirsen tepsi ikonu da değişsin
+            let tray_watch = tray.clone();
+            std::thread::spawn(move || {
+                let mut last = taskbar_is_light();
+                loop {
+                    std::thread::sleep(Duration::from_secs(3));
+                    let now = taskbar_is_light();
+                    if now != last {
+                        last = now;
+                        let _ = tray_watch.set_icon(Some(tray_image(now)));
+                    }
+                }
+            });
 
             Ok(())
         })

@@ -5,6 +5,7 @@
   import { addRule, removeRule, patchRule, setWhenType, testRule } from "$lib/notify";
   import { mobileInfo, sendTest, SERVICE } from "$lib/mobile";
   import { t } from "$lib/i18n";
+  import Icon from "$lib/Icon.svelte";
   import type { Key } from "$lib/i18n";
 
   const WHEN: [RuleWhen["type"], Key][] = [
@@ -69,10 +70,12 @@
   {/each}
 </datalist>
 
-<label class="check">
-  <input type="checkbox" bind:checked={$settings.notifications.enabled} />
-  {$t("rule.master")}
-</label>
+<div class="box">
+  <label class="check master">
+    <input type="checkbox" bind:checked={$settings.notifications.enabled} />
+    {$t("rule.master")}
+  </label>
+</div>
 
 <div class="box">
   <h4>{$t("hn.title")}</h4>
@@ -132,7 +135,7 @@
           placeholder={$t("rule.name")}
           on:change={(e) => patchRule(r.id, { name: e.currentTarget.value })}
         />
-        <button class="icon" title={$t("rule.delete")} on:click={() => remove(r.id)}>✕</button>
+        <button class="icon" title={$t("rule.delete")} on:click={() => remove(r.id)}><Icon name="close" size={14} /></button>
       </div>
 
       <input
@@ -226,147 +229,43 @@
   {/if}
 {/each}
 
-<button on:click={add}>{$t("rule.add")}</button>
+<button class="addrule" on:click={add}>{$t("rule.add")}</button>
 
 <style>
   .box {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    gap: 8px;
+    padding: 12px;
+    background: var(--plate);
+    border-radius: 16px;
   }
-  h4 {
-    margin: 0;
-    font-size: 12px;
-    opacity: 0.75;
-  }
-  .sec {
-    margin-top: 2px;
-  }
-  .stat {
-    margin: 0;
-    font-size: 12px;
-    color: #3ecf6e;
-  }
-  .stat.bad {
-    color: #e5484d;
-  }
-  button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .hint {
-    opacity: 0.65;
-    font-size: 12px;
-    margin: 0;
-  }
-  .warn {
-    align-self: center;
-    font-size: 12px;
-    color: var(--accent);
-  }
+  h4 { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .sec { margin: 4px 4px 0; }
+  .stat { margin: 0; font-size: 12px; color: var(--ok); }
+  .stat.bad { color: var(--danger); }
+  .hint { color: var(--muted); font-size: 12px; margin: 0; }
+  .warn { align-self: center; font-size: 12px; color: var(--accent); }
 
   .rule {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    padding: 7px 8px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-  }
-  .rule.mini {
-    flex-direction: row;
-    align-items: center;
     gap: 6px;
-    padding: 5px 8px;
+    padding: 10px;
+    background: var(--plate);
+    border-radius: 16px;
   }
-  .rule.off {
-    opacity: 0.55;
-  }
-  .nm {
-    flex: 1;
-    min-width: 0;
-    font-size: 13px;
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .row {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-  }
-  .grow {
-    flex: 1;
-    min-width: 0;
-  }
-  .val {
-    width: 84px;
-    flex: none;
-  }
-  .check {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-  }
-  .check input {
-    padding: 0;
-  }
-  .inline {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 12px;
-  }
-  .num {
-    width: 70px;
-  }
-  .bad {
-    border-color: #e5484d !important;
-  }
-
-  input:not([type="checkbox"]),
-  select,
-  button {
-    padding: 5px 8px;
-    border-radius: 8px;
-    border: 1px solid var(--input-border);
-    background: var(--input-bg);
-    color: inherit;
-    font-size: 12.5px;
-    font-family: inherit;
-  }
-  button {
-    cursor: pointer;
-  }
-  button:hover {
-    background: var(--hover);
-  }
-  .primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #1a1a1a;
-    font-weight: 600;
-  }
-  .primary:hover {
-    background: var(--accent);
-    filter: brightness(1.1);
-  }
-  .icon {
-    padding: 2px 8px;
-    font-size: 13px;
-  }
-  .small {
-    padding: 3px 9px;
-    font-size: 12px;
-  }
+  .rule.mini { flex-direction: row; align-items: center; gap: 8px; padding: 8px 12px; }
+  .rule.off { opacity: 0.55; }
+  .nm { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row { display: flex; gap: 6px; align-items: center; }
+  .grow { flex: 1; min-width: 0; }
+  .val { width: 90px; flex: none; }
+  .check { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 12.5px; }
+  .inline { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+  .num { width: 74px; }
+  .bad { box-shadow: inset 0 0 0 1.5px var(--danger) !important; }
+  .icon { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; }
+  .master { font-weight: 600; }
+  .small { padding: 3px 10px; font-size: 12px; }
 </style>

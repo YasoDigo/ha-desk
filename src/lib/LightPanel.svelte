@@ -59,7 +59,7 @@
       <div class="ctl">
         <div class="lbl"><span>{$t("light.brightness")}</span><b class:act={"bri" in live}>%{bri}</b></div>
         <input
-          type="range" min="0" max="100" step="1" value={bri}
+          type="range" class="fader" style="--p: {bri}%" min="0" max="100" step="1" value={bri}
           on:input={(e) => drag("bri", e)}
           on:change={() => release("bri", (v) => run(setPct(entity, v)))}
         />
@@ -118,30 +118,33 @@
 <style>
   .panel { display: flex; flex-direction: column; gap: 12px; }
   .ctl { display: flex; flex-direction: column; gap: 6px; }
-  .lbl { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
-  .lbl.sm { font-size: 11px; opacity: 0.8; }
-  .lbl b { font-variant-numeric: tabular-nums; opacity: 0.8; }
-  .lbl b.act { color: var(--accent); opacity: 1; font-size: 14px; }
-  .sw { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); }
-  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .lbl { display: flex; justify-content: space-between; align-items: center; font-size: 12px; opacity: 0.85; }
+  .lbl.sm { font-size: 11px; }
+  .lbl b { font-weight: 500; font-variant-numeric: tabular-nums; }
+  .lbl b.act { font-weight: 700; font-size: 13px; }
+  .sw { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 40%, transparent); }
+  input[type="range"] { width: 100%; }
   input[type="range"].grad {
     -webkit-appearance: none;
     appearance: none;
-    height: 12px;
+    height: 22px;
     padding: 0;
-    border-radius: 6px;
-    border: 1px solid var(--border);
+    border-radius: 11px;
+    border: 0;
+    cursor: pointer;
   }
   input[type="range"].grad::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
+    width: 8px;
+    height: 22px;
+    border-radius: 4px;
     background: #fff;
-    border: 2px solid #222;
-    box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
-    cursor: pointer;
+    box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.55);
   }
-  select { width: 100%; }
-  .hint { opacity: 0.65; font-size: 13px; margin: 0; }
+  select {
+    width: 100%;
+    background: var(--btn, var(--raised));
+    color: inherit;
+  }
+  .hint { opacity: 0.7; font-size: 13px; margin: 0; }
 </style>

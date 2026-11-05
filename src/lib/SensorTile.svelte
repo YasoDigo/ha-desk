@@ -3,6 +3,9 @@
   import type { HaEntity } from "$lib/ha";
   import { fetchHistory } from "$lib/history";
   import { binInfo } from "$lib/tileKind";
+  import Icon from "$lib/Icon.svelte";
+  import { sensorLook } from "$lib/sensorLook";
+  import { marquee } from "$lib/marquee";
   import { t, tn } from "$lib/i18n";
   import type { Point } from "$lib/history";
 
@@ -15,6 +18,7 @@
   export let onSpan: () => void = () => {};
 
   $: isBinary = entityId.startsWith("binary_sensor.");
+  $: look = sensorLook(entityId, entity);
   $: state = entity?.state ?? "";
   $: dead = !entity || state === "unavailable" || state === "unknown";
   $: num = Number(state);
@@ -100,28 +104,28 @@
   onDestroy(stop);
 </script>
 
-<div class="stile" class:active class:alert={isAlert} class:dead class:missing={loaded && !entity}>
+<div class="stile" style="--sc: {look.color}" class:active class:alert={isAlert} class:dead class:missing={loaded && !entity}>
   {#if editing}
     <div class="edit">
       <button on:click|stopPropagation={onSpan} title={span === 2 ? $t("tile.halve") : $t("tile.widenChart")}>
-        {span === 2 ? "½" : "↔"}
+        <Icon name={span === 2 ? "shrink" : "expand"} size={13} />
       </button>
-      <button class="del" on:click|stopPropagation={onRemove} title={$t("common.remove")}>✕</button>
+      <button class="del" on:click|stopPropagation={onRemove} title={$t("common.remove")}><Icon name="close" size={12} /></button>
     </div>
   {/if}
 
-  <span class="name">{name}</span>
+  <span class="name" title={name}><span class="ic"><Icon name={look.icon} size={15} /></span><span class="nm mq" use:marquee={name}><span class="mi">{name}</span></span></span>
 
   {#if !entity}
     <span class="sub">{loaded ? $t("common.notFound") : $t("common.loadingLc")}</span>
   {:else if isBinary}
     <div class="row">
       <span class="dot" class:on={active} class:alert={isAlert}></span>
-      <span class="big">{big}</span>
+      <span class="big txt">{big}</span>
     </div>
   {:else}
     <div class="row">
-      <span class="big">{big}</span>
+      <span class="big" class:txt={!isNumeric}>{big}</span>
       {#if isNumeric && unit}<span class="unit">{unit}</span>{/if}
     </div>
   {/if}
@@ -151,75 +155,95 @@
     gap: 4px;
     padding: 10px 12px;
     min-height: 64px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    transition: background 0.2s, border-color 0.2s;
+    background: var(--plate);
+    border-radius: var(--r-tile);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
+    transition: background 0.2s var(--ease), box-shadow 0.2s var(--ease);
   }
-  .stile.active { border-color: var(--accent); background: var(--card-on); }
+  /* etkin ikili sensör: çerçeve vurgu rengiyle yanar, zemin dolmaz (dolu zemin sadece açık anahtarlara ait) */
+  .stile.active { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sc) 80%, transparent); }
   .stile.alert {
-    border-color: #e5484d;
-    background: color-mix(in srgb, #e5484d 16%, var(--card));
+    box-shadow: inset 0 0 0 1.5px var(--danger);
+    background: color-mix(in srgb, var(--danger) 14%, var(--plate));
   }
-  .stile.dead { opacity: 0.6; }
-  .stile.missing { border-style: dashed; opacity: 0.7; }
+  .stile.dead { opacity: 0.55; }
+  .stile.missing { box-shadow: inset 0 0 0 1.5px var(--line); background: transparent; opacity: 0.75; }
 
   .name {
-    font-size: 12px;
-    opacity: 0.75;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 12.5px;
+    color: var(--muted);
   }
-  .sub { font-size: 11px; opacity: 0.65; }
-  .row { display: flex; align-items: baseline; gap: 4px; min-width: 0; }
+  .ic {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    color: var(--sc);
+    background: color-mix(in srgb, var(--sc) 16%, transparent);
+  }
+  .nm { flex: 1; }
+  .sub { font-size: 12px; color: var(--muted); }
+  .row { display: flex; align-items: baseline; gap: 5px; min-width: 0; margin-top: auto; }
   .big {
-    font-size: 22px;
-    font-weight: 700;
-    line-height: 1.15;
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 300;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .unit { font-size: 12px; font-weight: 500; opacity: 0.7; }
+  .big.txt { font-size: 17px; font-weight: 600; letter-spacing: 0; }
+  .unit { font-size: 13px; color: var(--muted); }
 
   .dot {
     align-self: center;
     flex: none;
-    width: 10px;
-    height: 10px;
+    margin: 0 5px 0 4px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
-    background: #888;
+    background: var(--line);
   }
-  .dot.on { background: var(--accent); }
-  .dot.alert { background: #e5484d; }
+  .dot.on { background: var(--sc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--sc) 25%, transparent); }
+  .dot.alert { background: var(--danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 25%, transparent); }
 
   .chart { width: 100%; height: 44px; margin-top: 4px; }
-  .chart .area { fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: none; }
+  .chart .area { fill: color-mix(in srgb, var(--sc) 20%, transparent); stroke: none; }
   .chart .line {
     fill: none;
-    stroke: var(--accent);
-    stroke-width: 1.5;
+    stroke: var(--sc);
+    stroke-width: 1.6;
     vector-effect: non-scaling-stroke;
   }
-  .mm { display: flex; justify-content: space-between; font-size: 10px; opacity: 0.6; }
+  .mm { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); }
 
   .edit {
     position: absolute;
-    top: -8px;
-    right: 6px;
+    top: -9px;
+    right: 8px;
     display: flex;
-    gap: 3px;
+    gap: 4px;
     z-index: 2;
   }
   .edit button {
-    padding: 1px 7px;
-    font-size: 12px;
-    background: #444;
-    color: #fff;
-    border: 1px solid #666;
-    border-radius: 6px;
-    cursor: pointer;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 20px;
+    padding: 0;
+    color: var(--text);
+    background: var(--raised);
+    border: 1px solid var(--line);
+    border-radius: 999px;
   }
-  .edit .del { background: #7a2b2b; }
+  .edit .del { color: var(--danger); }
 </style>

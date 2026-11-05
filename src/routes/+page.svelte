@@ -20,10 +20,15 @@
   import Tile from "$lib/Tile.svelte";
   import Board from "$lib/Board.svelte";
   import NotifyPanel from "$lib/NotifyPanel.svelte";
+  import Icon from "$lib/Icon.svelte";
+  import "$lib/theme.css";
   import { startNotifications } from "$lib/notify";
   import { t, tn } from "$lib/i18n";
   import { startMobile } from "$lib/mobile";
   import { areas, entityArea } from "$lib/areas";
+
+  // hazır vurgu renkleri (ilki varsayılan gümüş-gri)
+  const ACCENTS = ["#a8adb7", "#d4a373", "#7fb7a4", "#c08497", "#8fa3c7", "#e0b84c"];
 
   const SENSOR_DOMAINS = ["sensor", "binary_sensor"];
 
@@ -216,6 +221,20 @@
     detailId = null;
   }
 
+  // Alt çubuktan bölüm seç: ayarlardaysak önce kutucuklara döner
+  function goSection(s: typeof section) {
+    stopRecord();
+    view = "tiles";
+    setSection(s);
+  }
+
+  function toggleEdit() {
+    if (view !== "tiles" || !connected) return;
+    editing = !editing;
+    picking = false;
+    detailId = null;
+  }
+
   function toggleDetail(entityId: string) {
     detailId = detailId === entityId ? null : entityId;
   }
@@ -286,24 +305,19 @@
     <strong data-tauri-drag-region>HA Desk</strong>
     <span class="sp" data-tauri-drag-region></span>
     {#if view === "tiles" && connected}
-      <div class="seg">
-        <button class:sel={section === "tiles"} on:click={() => setSection("tiles")}>{$t("main.tiles")}</button>
-        <button class:sel={section === "sensors"} on:click={() => setSection("sensors")}>{$t("main.sensors")}</button>
-      </div>
-      <button class="icon" class:active={editing} on:click={() => { editing = !editing; picking = false; detailId = null; }} title={$t("common.edit")}>✎</button>
+      <button class="ghost" class:active={editing} on:click={toggleEdit} title={$t("common.edit")} aria-label={$t("common.edit")}>
+        <Icon name="pencil" size={16} />
+      </button>
     {/if}
     <button
-      class="icon"
+      class="ghost"
       class:active={pinned}
       on:click={togglePin}
       title={pinned ? $t("main.unpin") : $t("main.pin")}
       aria-label={$t("main.pinAria")}
     >
-      <svg viewBox="0 0 24 24" width="14" height="14" fill={pinned ? "currentColor" : "none"} stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
-        <path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6z" /><line x1="12" y1="14" x2="12" y2="21" />
-      </svg>
+      <Icon name="pin" size={16} fill={pinned ? "currentColor" : "none"} />
     </button>
-    <button class="icon" class:active={view === "settings"} on:click={toggleSettings} title={$t("main.settings")}>⚙</button>
   </header>
 
   <div class="body">
@@ -321,51 +335,72 @@
 
         <div class="pane">
           {#if tab === "baglanti"}
-            <label>{$t("conn.primary")}
-              <input bind:value={primary} placeholder="http://homeassistant.local:8123" />
-            </label>
-            <label>{$t("conn.fallback")}
-              <input bind:value={fallback} placeholder={$t("conn.fallbackPh")} />
-            </label>
-            <label>{$t("conn.token")}
-              <input
-                type="password"
-                bind:value={tokenInput}
-                placeholder={hasToken ? $t("conn.tokenSaved") : $t("conn.tokenPh")}
-              />
-            </label>
-            <div class="row">
-              <button class="primary" on:click={saveConnection}>{$t("conn.saveConnect")}</button>
-              {#if hasToken}<button on:click={forgetToken}>{$t("conn.deleteToken")}</button>{/if}
+            <div class="card">
+              <label>{$t("conn.primary")}
+                <input bind:value={primary} placeholder="http://homeassistant.local:8123" />
+              </label>
+              <label>{$t("conn.fallback")}
+                <input bind:value={fallback} placeholder={$t("conn.fallbackPh")} />
+              </label>
+              <label>{$t("conn.token")}
+                <input
+                  type="password"
+                  bind:value={tokenInput}
+                  placeholder={hasToken ? $t("conn.tokenSaved") : $t("conn.tokenPh")}
+                />
+              </label>
+              <div class="row">
+                <button class="primary" on:click={saveConnection}>{$t("conn.saveConnect")}</button>
+                {#if hasToken}<button on:click={forgetToken}>{$t("conn.deleteToken")}</button>{/if}
+              </div>
             </div>
-            <p class="state">{$t("conn.status", { status: $status })}{#if $activeUrl} · {$activeUrl}{/if}</p>
+            <p class="state">{$t("conn.status", { status: $t(`status.${$status}`) })}{#if $activeUrl}&nbsp;·&nbsp;{$activeUrl}{/if}</p>
             {#if $lastError}<p class="err">{$lastError}</p>{/if}
           {:else if tab === "genel"}
-            <label>{$t("general.theme")}
-              <select bind:value={$settings.appearance.theme}>
-                <option value="dark">{$t("theme.dark")}</option>
-                <option value="light">{$t("theme.light")}</option>
-                <option value="system">{$t("theme.system")}</option>
-              </select>
-            </label>
-            <label>{$t("general.accent")}
-              <input type="color" class="color" bind:value={$settings.appearance.accent} />
-            </label>
-            <label>{$t("general.language")}
-              <select bind:value={$settings.language}>
-                <option value="auto">{$t("lang.auto")}</option>
-                <option value="tr">Türkçe</option>
-                <option value="en">English</option>
-              </select>
-            </label>
-            <label class="check">
-              <input type="checkbox" checked={autostart} on:change={toggleAutostart} />
-              {$t("general.autostart")}
-            </label>
-            <label class="check">
-              <input type="checkbox" bind:checked={$settings.palette.sensors} />
-              {$t("general.paletteSensors")}
-            </label>
+            <div class="card">
+              <label>{$t("general.theme")}
+                <select bind:value={$settings.appearance.theme}>
+                  <option value="dark">{$t("theme.dark")}</option>
+                  <option value="light">{$t("theme.light")}</option>
+                  <option value="system">{$t("theme.system")}</option>
+                </select>
+              </label>
+              <div class="fld">
+                <span class="fl">{$t("general.accent")}</span>
+                <div class="swatches">
+                  {#each ACCENTS as c}
+                    <button
+                      class="sw"
+                      class:cur={$settings.appearance.accent.toLowerCase() === c}
+                      style="background:{c}"
+                      title={c}
+                      aria-label={c}
+                      on:click={() => ($settings.appearance.accent = c)}
+                    ></button>
+                  {/each}
+                  <label class="sw custom" class:cur={!ACCENTS.includes($settings.appearance.accent.toLowerCase())} title="#rrggbb">
+                    <input type="color" bind:value={$settings.appearance.accent} />
+                  </label>
+                </div>
+              </div>
+              <label>{$t("general.language")}
+                <select bind:value={$settings.language}>
+                  <option value="auto">{$t("lang.auto")}</option>
+                  <option value="tr">Türkçe</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+            </div>
+            <div class="card">
+              <label class="check">
+                <input type="checkbox" checked={autostart} on:change={toggleAutostart} />
+                {$t("general.autostart")}
+              </label>
+              <label class="check">
+                <input type="checkbox" bind:checked={$settings.palette.sensors} />
+                {$t("general.paletteSensors")}
+              </label>
+            </div>
             {#if $lastError}<p class="err">{$lastError}</p>{/if}
           {:else if tab === "kisayol"}
             <datalist id="ent-list">
@@ -385,7 +420,7 @@
                   <button class="keys" class:rec={recordingId === s.id} on:click={() => startRecord(s.id)}>
                     {recordingId === s.id ? $t("sc.recording") : s.keys ? prettyKeys(s.keys) : $t("sc.assign")}
                   </button>
-                  <button class="icon" on:click={() => removeShortcut(s.id)} title={$t("common.delete")}>✕</button>
+                  <button class="icon" on:click={() => removeShortcut(s.id)} title={$t("common.delete")}><Icon name="close" size={14} /></button>
                 </div>
                 {#if recordingId === s.id && recordMsg}<p class="err">{recordMsg}</p>{/if}
 
@@ -425,16 +460,17 @@
           {:else if tab === "bildirim"}
             <NotifyPanel />
           {:else}
-            <textarea bind:value={backupText} placeholder={$t("backup.ph")}></textarea>
-            <div class="row">
-              <button on:click={doExport}>{$t("backup.export")}</button>
-              <button on:click={doImport}>{$t("backup.import")}</button>
+            <div class="card grow-card">
+              <textarea bind:value={backupText} placeholder={$t("backup.ph")}></textarea>
+              <div class="row">
+                <button on:click={doExport}>{$t("backup.export")}</button>
+                <button on:click={doImport}>{$t("backup.import")}</button>
+              </div>
             </div>
             {#if backupMsg}<p class="hint">{backupMsg}</p>{/if}
           {/if}
         </div>
 
-        <button class="primary" on:click={toggleSettings}>{$t("common.ok")}</button>
       </section>
     {:else if !connected}
       <p class="hint">
@@ -499,6 +535,18 @@
     {/if}
   </div>
 
+  <nav class="dock" aria-label={$t("main.pinAria")}>
+    <button class:sel={view === "tiles" && section === "tiles"} disabled={!connected} on:click={() => goSection("tiles")}>
+      <Icon name="grid" size={19} /><span>{$t("main.tiles")}</span>
+    </button>
+    <button class:sel={view === "tiles" && section === "sensors"} disabled={!connected} on:click={() => goSection("sensors")}>
+      <Icon name="gauge" size={19} /><span>{$t("main.sensors")}</span>
+    </button>
+    <button class:sel={view === "settings"} on:click={toggleSettings}>
+      <Icon name="gear" size={19} /><span>{$t("main.settings")}</span>
+    </button>
+  </nav>
+
   {#if view === "tiles" && connected && detailId && $entities[detailId]}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="backdrop" transition:fade={{ duration: 220 }} on:click|self={() => (detailId = null)}>
@@ -520,65 +568,53 @@
 </main>
 
 <style>
-  :global(:root) {
-    --bg: #1e1e1e;
-    --card: #2a2a2a;
-    --card-on: color-mix(in srgb, var(--accent) 18%, var(--card));
-    --border: #3d3d3d;
-    --text: #e6e6e6;
-    --input-bg: #2b2b2b;
-    --input-border: #444;
-    --hover: #383838;
-    --accent: #f0b429;
-    color-scheme: dark;
-  }
-  :global(:root[data-theme="light"]) {
-    --bg: #f3f3f3;
-    --card: #ffffff;
-    --border: #d9d9d9;
-    --text: #1f1f1f;
-    --input-bg: #ffffff;
-    --input-border: #c8c8c8;
-    --hover: #ebebeb;
-    color-scheme: light;
-  }
-  :global(html, body) {
-    margin: 0;
-    height: 100%;
-    overflow: hidden;
-    background: var(--bg);
-    color: var(--text);
-    font-family: "Segoe UI", sans-serif;
-  }
-  :global(*) { scrollbar-width: thin; scrollbar-color: transparent transparent; }
-  :global(*:hover) { scrollbar-color: #888 transparent; }
-
   main {
     height: 100vh;
     box-sizing: border-box;
-    padding: 12px;
+    padding: 10px 12px 10px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
-  header { display: flex; align-items: center; gap: 8px; }
+  header { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 2px; }
+  header strong { font-family: var(--font-display); font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
   .sp { flex: 1; align-self: stretch; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: #888; }
-  .dot.connected { background: #3ecf6e; }
-  .dot.connecting { background: #f0b429; }
-  .dot.auth_failed { background: #e5484d; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.connected { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+  .dot.connecting { background: var(--accent); }
+  .dot.auth_failed { background: var(--danger); }
 
-  .seg { display: flex; gap: 2px; padding: 2px; background: var(--card); border-radius: 9px; }
-  .seg button {
-    border: none;
-    background: transparent;
-    padding: 4px 9px;
-    font-size: 12px;
-    border-radius: 7px;
+  .ghost { padding: 5px 7px; background: transparent; display: inline-flex; color: var(--muted); border-radius: 999px; }
+  .ghost:hover:not(:disabled) { background: var(--plate); color: var(--text); }
+  .ghost.active { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 20%, var(--plate)); }
+
+  .body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding: 4px 0 8px; }
+
+  /* alt çubuk: bölümler arasında geçiş */
+  .dock {
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    background: var(--plate);
+    border-radius: 999px;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
   }
-  .seg button.sel { background: var(--accent); color: #1a1a1a; font-weight: 600; }
-
-  .body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 6px 4px 6px 0; }
+  .dock button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 6px 0 5px;
+    font-size: 10.5px;
+    color: var(--muted);
+    background: transparent;
+    border-radius: 999px;
+  }
+  .dock button:hover:not(:disabled) { background: var(--raised); color: var(--text); }
+  .dock button.sel { background: color-mix(in srgb, var(--accent) 22%, var(--plate)); color: var(--accent-text); font-weight: 600; }
+  .dock button.sel:hover { background: color-mix(in srgb, var(--accent) 22%, var(--plate)); color: var(--accent-text); }
+  .dock button:disabled { opacity: 0.35; }
 
   /* ışık detayı: bulanık arkaplan üstünde odaklanmış kutucuk */
   .backdrop {
@@ -588,60 +624,51 @@
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    padding: 56px 12px 12px;
+    padding: 48px 12px 12px;
     overflow-y: auto;
-    background: color-mix(in srgb, var(--bg) 55%, transparent);
-    backdrop-filter: blur(8px);
+    background: color-mix(in srgb, var(--bg) 62%, transparent);
+    backdrop-filter: blur(10px);
   }
-  .focus {
-    width: 100%;
-    border-radius: 12px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  }
+  .focus { width: 100%; border-radius: var(--r-tile); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4); }
 
-  input, select, button, textarea {
-    padding: 7px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--input-border);
-    background: var(--input-bg);
-    color: inherit;
-    font-size: 13px;
-    font-family: inherit;
-  }
-  button { cursor: pointer; }
-  button:hover { background: var(--hover); }
-  .icon { padding: 3px 9px; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
-  .icon.active { border-color: var(--accent); color: var(--accent); }
-  .primary { background: var(--accent); color: #1a1a1a; border-color: var(--accent); font-weight: 600; }
-  .primary:hover { background: var(--accent); filter: brightness(1.1); }
-  .seg button:hover { background: transparent; }
-  .seg button.sel:hover { background: var(--accent); }
-  .hint { opacity: 0.65; font-size: 13px; }
-  .err { color: #e5484d; font-size: 12px; margin: 0; }
+  .hint { color: var(--muted); font-size: 13px; }
+  .err { color: var(--danger); font-size: 12px; margin: 0; }
 
   .settings { display: flex; flex-direction: column; gap: 10px; height: 100%; }
-  .tabs { display: flex; gap: 4px; padding: 3px; background: var(--card); border-radius: 10px; }
-  .tabs button { flex: 1; border: none; background: transparent; padding: 6px 2px; border-radius: 8px; font-size: 12px; }
-  .tabs button.sel { background: var(--accent); color: #1a1a1a; font-weight: 600; }
-  .pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
-  .pane label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  .tabs { display: flex; gap: 2px; padding: 3px; background: var(--plate); border-radius: 999px; }
+  .tabs button { flex: 1; background: transparent; padding: 6px 2px; border-radius: 999px; font-size: 12px; color: var(--muted); }
+  .tabs button:hover:not(:disabled) { background: var(--raised); color: var(--text); }
+  .tabs button.sel { background: color-mix(in srgb, var(--accent) 22%, var(--plate)); color: var(--accent-text); font-weight: 600; }
+  .pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 2px; }
+  .pane label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+  .pane label > :global(input), .pane label > :global(select) { color: var(--text); }
   .pane textarea { flex: 1; resize: none; font-family: Consolas, monospace; font-size: 11px; }
-  .check { flex-direction: row !important; align-items: center; gap: 8px !important; }
+  .check { flex-direction: row !important; align-items: center; gap: 8px !important; color: var(--text) !important; }
   .check input { padding: 0; }
   .color { padding: 2px; height: 34px; }
+  .card { display: flex; flex-direction: column; gap: 12px; padding: 14px; background: var(--plate); border-radius: 18px; }
+  .grow-card { flex: 1; min-height: 0; }
+  .fld { display: flex; flex-direction: column; gap: 8px; }
+  .fl { font-size: 12px; color: var(--muted); }
+  .swatches { display: flex; gap: 10px; align-items: center; }
+  .sw { position: relative; width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 0; flex: none; }
+  .sw.cur { box-shadow: 0 0 0 2px var(--plate), 0 0 0 4px var(--text); }
+  .sw.custom { cursor: pointer; background: conic-gradient(#e5736f, #e8c35c, #6fcf97, #5cb7e8, #a78bfa, #e5736f); }
+  .sw.custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; padding: 0; }
   .row { display: flex; gap: 8px; }
-  .state { font-size: 12px; opacity: 0.7; margin: 0; word-break: break-all; }
+  .state { font-size: 12px; color: var(--muted); margin: 0; word-break: break-all; }
 
+  .sc .icon { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; }
   .sc {
     display: flex; flex-direction: column; gap: 6px;
-    padding: 8px; background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px; background: var(--plate); border-radius: 16px;
   }
-  .num { align-self: center; font-size: 12px; opacity: 0.6; }
+  .num { align-self: center; font-size: 12px; color: var(--muted); }
   .keys { flex: 1; text-align: left; font-family: Consolas, monospace; }
-  .keys.rec { border-color: var(--accent); color: var(--accent); }
+  .keys.rec { box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent-text); }
   .sc .inline { flex-direction: row; align-items: center; gap: 8px; }
   .sc .inline input { width: 80px; }
-  .bad { border-color: #e5484d !important; }
+  .bad { box-shadow: inset 0 0 0 1.5px var(--danger) !important; }
 
   .picker { display: flex; flex-direction: column; gap: 8px; height: 100%; }
   .prow { display: flex; gap: 6px; }
@@ -654,7 +681,10 @@
   .picker li button {
     width: 100%; text-align: left;
     display: flex; flex-direction: column; gap: 1px;
+    background: var(--plate);
+    border-radius: 12px;
   }
+  .picker li button:hover { background: var(--raised); }
   .n { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .id { font-size: 10px; opacity: 0.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .id { font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

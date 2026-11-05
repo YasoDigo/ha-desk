@@ -159,7 +159,7 @@
   </div>
   {#if cPos}
     <div class="srow">
-      <input type="range" min="0" max="100" step="1" value={posShown} {disabled} on:input={onPosInput} on:change={onPosChange} />
+      <input type="range" class="fader" style="--p: {posShown}%" min="0" max="100" step="1" value={posShown} {disabled} on:input={onPosInput} on:change={onPosChange} />
       <span class="val" class:active={posDrag !== null}>%{posShown}</span>
     </div>
   {/if}
@@ -204,7 +204,7 @@
     {#if !mOff && mNext}
       <button {disabled} title={$t("media.next")} on:click={() => call("media_next_track")}><Icon name="next" /></button>
     {/if}
-    <button class:spin={refreshing} disabled={disabled || refreshing} title={$t("media.refresh")} on:click={refresh}>
+    <button class="ref" class:spin={refreshing} disabled={disabled || refreshing} title={$t("media.refresh")} on:click={refresh}>
       <Icon name="refresh" />
     </button>
   </div>
@@ -218,7 +218,7 @@
   {/if}
   {#if !mOff && mVol}
     <div class="srow">
-      <input type="range" min="0" max="100" step="1" value={volShown} {disabled} on:input={onVolInput} on:change={onVolChange} />
+      <input type="range" class="fader" style="--p: {volShown}%" min="0" max="100" step="1" value={volShown} {disabled} on:input={onVolInput} on:change={onVolChange} />
       <span class="val" class:active={volDrag !== null}>%{volShown}</span>
     </div>
   {/if}
@@ -227,116 +227,63 @@
 <style>
   .btns,
   .temp,
-  .chips {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-  }
+  .chips { display: flex; gap: 6px; align-items: center; }
   .btns button,
   .temp button {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 5px 0;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--input-bg);
+    padding: 6px 0;
+    border-radius: var(--r-ctl);
+    border: 0;
+    background: var(--btn, var(--raised));
     color: inherit;
-    cursor: pointer;
-  }
-  .temp button {
-    flex: none;
-    width: 38px;
   }
   .btns button:hover:not(:disabled),
-  .temp button:hover:not(:disabled) {
-    background: var(--hover);
-  }
-  button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .btns .txt {
-    font-size: 12px;
-    font-family: inherit;
-  }
-  .btns .warn {
-    border-color: #e5484d;
-    color: #e5484d;
-  }
+  .temp button:hover:not(:disabled) { background: color-mix(in srgb, var(--btn, var(--raised)) 70%, currentColor); }
+  .temp button { flex: none; width: 40px; }
+  .btns .txt { font-size: 12.5px; font-weight: 600; }
+  .btns .ref:only-child { flex: 0 0 auto; padding: 6px 18px; }
+  .btns .warn { background: var(--danger); color: #fff; }
 
-  .spin :global(svg) {
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
+  .spin :global(svg) { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   .src {
     width: 100%;
-    padding: 4px 6px;
+    padding: 5px 8px;
     font-size: 12px;
-    font-family: inherit;
-    background: var(--input-bg);
+    background: var(--btn, var(--raised));
     color: inherit;
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    border: 0;
+    border-radius: var(--r-ctl);
   }
 
-  .temp {
-    justify-content: center;
-  }
+  .temp { justify-content: center; gap: 10px; }
   .tv {
-    min-width: 64px;
+    min-width: 72px;
     text-align: center;
-    font-size: 20px;
-    font-weight: 700;
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 300;
+    letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
   }
 
-  .chips {
-    flex-wrap: wrap;
-    gap: 4px;
-  }
+  .chips { flex-wrap: wrap; gap: 4px; }
   .chip {
-    padding: 3px 9px;
-    font-size: 11px;
-    font-family: inherit;
+    padding: 3px 10px;
+    font-size: 11.5px;
     border-radius: 999px;
-    border: 1px solid var(--border);
-    background: var(--input-bg);
+    border: 0;
+    background: var(--btn, var(--raised));
     color: inherit;
-    cursor: pointer;
   }
-  .chip.cur {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #1a1a1a;
-    font-weight: 600;
-  }
+  .chip.cur { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 
-  .srow {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .srow input[type="range"] {
-    flex: 1;
-    min-width: 0;
-    accent-color: var(--accent);
-  }
-  .val {
-    min-width: 44px;
-    text-align: right;
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-    opacity: 0.75;
-  }
-  .val.active {
-    opacity: 1;
-    color: var(--accent);
-    font-weight: 700;
-  }
+  .srow { display: flex; align-items: center; gap: 8px; }
+  .srow .fader { flex: 1; min-width: 0; }
+  .val { min-width: 40px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; opacity: 0.8; }
+  .val.active { opacity: 1; font-weight: 700; }
 </style>

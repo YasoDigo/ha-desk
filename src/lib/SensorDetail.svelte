@@ -3,6 +3,7 @@
   import type { HaEntity } from "$lib/ha";
   import { fetchHistory, downsample } from "$lib/history";
   import { t, tn, locale } from "$lib/i18n";
+  import { sensorLook } from "$lib/sensorLook";
   import type { Point } from "$lib/history";
 
   export let entityId: string;
@@ -108,7 +109,7 @@
   $: hy = chart && hp ? (chart.Y(hp.v) / H) * 100 : 0;
 </script>
 
-<div class="sdetail">
+<div class="sdetail" style="--sc: {sensorLook(entityId, entity).color}">
   <div class="top">
     <div class="title">
       <span class="name">{name}</span>
@@ -163,98 +164,73 @@
   .sdetail {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px;
-    background: var(--card);
-    border: 1px solid var(--accent);
-    border-radius: 12px;
+    gap: 12px;
+    padding: 16px;
+    background: var(--plate);
+    border-radius: 22px;
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sc, var(--accent)) 70%, transparent);
   }
   .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
   .title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .name { font-size: 13px; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cur { font-size: 30px; font-weight: 700; line-height: 1.1; }
-  .cur small { font-size: 14px; font-weight: 500; opacity: 0.7; }
-  .close {
-    padding: 3px 9px;
-    font-size: 14px;
-    border-radius: 8px;
-    border: 1px solid var(--input-border);
-    background: var(--input-bg);
-    color: inherit;
-    cursor: pointer;
+  .name { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .close { padding: 4px 10px; font-size: 14px; border-radius: 999px; }
+
+  .rng { display: flex; gap: 2px; padding: 3px; background: var(--field); border-radius: 999px; align-self: flex-start; }
+  .rng button { background: transparent; padding: 4px 12px; font-size: 12px; border-radius: 999px; }
+  .rng button.sel { background: color-mix(in srgb, var(--accent) 26%, var(--field)); color: var(--accent-text); font-weight: 600; }
+
+  .hint { color: var(--muted); font-size: 13px; margin: 0; }
+  .xlab { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); }
+  .stats div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    background: var(--field);
+    border-radius: 12px;
   }
-  .close:hover { background: var(--hover); }
+  .stats span { font-size: 10.5px; color: var(--muted); }
+  .stats b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
-  .rng { display: flex; gap: 2px; padding: 2px; background: var(--bg); border-radius: 9px; align-self: flex-start; }
-  .rng button {
-    border: none;
-    background: transparent;
-    color: inherit;
-    padding: 4px 10px;
-    font-size: 12px;
-    border-radius: 7px;
-    cursor: pointer;
+  .cur {
+    font-family: var(--font-display);
+    font-size: 40px;
+    font-weight: 300;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
   }
-  .rng button.sel { background: var(--accent); color: #1a1a1a; font-weight: 600; }
+  .cur small { font-size: 16px; color: var(--muted); letter-spacing: 0; margin-left: 2px; }
 
-  .hint { opacity: 0.65; font-size: 13px; margin: 0; }
-
-  .plot { position: relative; height: 140px; cursor: crosshair; }
+  .plot { position: relative; height: 150px; cursor: crosshair; }
   .plot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .grid { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
-  .area { fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: none; }
-  .line {
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 2;
-    vector-effect: non-scaling-stroke;
-  }
-  .ylab { position: absolute; left: 2px; font-size: 10px; opacity: 0.6; pointer-events: none; }
+  .grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 4; vector-effect: non-scaling-stroke; }
+  .area { fill: color-mix(in srgb, var(--sc, var(--accent)) 20%, transparent); stroke: none; }
+  .line { fill: none; stroke: var(--sc, var(--accent)); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  .ylab { position: absolute; left: 2px; font-size: 10px; color: var(--muted); pointer-events: none; }
   .ylab.top { top: 0; }
   .ylab.bot { bottom: 0; }
-
-  .vline {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 1px;
-    background: var(--text);
-    opacity: 0.35;
-    pointer-events: none;
-  }
+  .vline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--text); opacity: 0.3; pointer-events: none; }
   .mark {
     position: absolute;
     width: 10px;
     height: 10px;
     margin: -5px 0 0 -5px;
     border-radius: 50%;
-    background: var(--accent);
-    border: 2px solid var(--card);
+    background: var(--sc, var(--accent));
+    border: 2px solid var(--plate);
     pointer-events: none;
   }
   .tip {
     position: absolute;
     top: -6px;
     transform: translate(-50%, -100%);
-    padding: 3px 8px;
+    padding: 3px 9px;
     font-size: 11px;
     white-space: nowrap;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    background: var(--raised);
+    border-radius: 8px;
     pointer-events: none;
   }
-
-  .xlab { display: flex; justify-content: space-between; font-size: 10px; opacity: 0.6; }
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .stats div {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 6px 8px;
-    background: var(--bg);
-    border-radius: 8px;
-  }
-  .stats span { font-size: 10px; opacity: 0.65; }
-  .stats b { font-size: 13px; font-variant-numeric: tabular-nums; }
 </style>

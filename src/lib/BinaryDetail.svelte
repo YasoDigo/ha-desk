@@ -163,76 +163,59 @@
   .sdetail {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px;
-    background: var(--card);
-    border: 1px solid var(--accent);
-    border-radius: 12px;
+    gap: 12px;
+    padding: 16px;
+    background: var(--plate);
+    border-radius: 22px;
+    box-shadow: inset 0 0 0 1.5px var(--accent);
   }
   .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-  .title { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .name { font-size: 13px; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .cur { display: flex; align-items: center; gap: 8px; font-size: 24px; font-weight: 700; line-height: 1.1; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; background: #888; flex: none; }
-  .dot.on { background: var(--accent); }
-  .dot.alert { background: #e5484d; }
-  .close {
-    padding: 3px 9px;
-    font-size: 14px;
-    border-radius: 8px;
-    border: 1px solid var(--input-border);
-    background: var(--input-bg);
-    color: inherit;
-    cursor: pointer;
-  }
-  .close:hover { background: var(--hover); }
+  .title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .name { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .close { padding: 4px 10px; font-size: 14px; border-radius: 999px; }
 
-  .rng { display: flex; gap: 2px; padding: 2px; background: var(--bg); border-radius: 9px; align-self: flex-start; }
-  .rng button {
-    border: none;
-    background: transparent;
-    color: inherit;
-    padding: 4px 10px;
-    font-size: 12px;
-    border-radius: 7px;
-    cursor: pointer;
-  }
-  .rng button.sel { background: var(--accent); color: #1a1a1a; font-weight: 600; }
+  .rng { display: flex; gap: 2px; padding: 3px; background: var(--field); border-radius: 999px; align-self: flex-start; }
+  .rng button { background: transparent; padding: 4px 12px; font-size: 12px; border-radius: 999px; }
+  .rng button.sel { background: color-mix(in srgb, var(--accent) 26%, var(--field)); color: var(--accent-text); font-weight: 600; }
 
-  .hint { opacity: 0.65; font-size: 13px; margin: 0; }
-
-  .bar { position: relative; height: 30px; background: var(--bg); border-radius: 8px; overflow: hidden; }
-  .seg { position: absolute; top: 0; bottom: 0; min-width: 2px; }
-  .seg.on { background: var(--accent); }
-  .seg.alert { background: #e5484d; }
-  .seg.off { background: color-mix(in srgb, var(--text) 14%, var(--bg)); }
-  .seg.dead {
-    background: repeating-linear-gradient(
-      45deg,
-      color-mix(in srgb, var(--text) 18%, var(--bg)) 0 4px,
-      var(--bg) 4px 8px
-    );
-  }
-  .xlab { display: flex; justify-content: space-between; font-size: 10px; opacity: 0.6; }
-
-  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 0; }
+  .xlab { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); }
   .stats div {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 6px 8px;
-    background: var(--bg);
-    border-radius: 8px;
+    padding: 8px 10px;
+    background: var(--field);
+    border-radius: 12px;
   }
-  .stats span { font-size: 10px; opacity: 0.65; }
-  .stats b { font-size: 13px; font-variant-numeric: tabular-nums; }
+  .stats span { font-size: 10.5px; color: var(--muted); }
+  .stats b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
-  .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .cur { display: flex; align-items: center; gap: 10px; font-size: 24px; font-weight: 600; line-height: 1.1; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--line); flex: none; }
+  .dot.on { background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .dot.alert { background: var(--danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 25%, transparent); }
+
+  .bar { position: relative; height: 30px; background: var(--field); border-radius: 10px; overflow: hidden; }
+  .seg { position: absolute; top: 0; bottom: 0; min-width: 2px; }
+  .seg.on { background: var(--accent); }
+  .seg.alert { background: var(--danger); }
+  .seg.off { background: color-mix(in srgb, var(--text) 12%, var(--field)); }
+  .seg.dead {
+    background: repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--text) 18%, var(--field)) 0 4px,
+      var(--field) 4px 8px
+    );
+  }
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+  .log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
   .log li { display: flex; align-items: center; gap: 8px; font-size: 12px; }
   .log .l { flex: 1; }
-  .log time { opacity: 0.65; font-variant-numeric: tabular-nums; }
-  .d { width: 8px; height: 8px; border-radius: 50%; background: #888; flex: none; }
+  .log time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .d { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; }
   .d.on { background: var(--accent); }
-  .d.alert { background: #e5484d; }
-  .d.dead { background: #666; }
+  .d.alert { background: var(--danger); }
+  .d.dead { background: var(--muted); }
 </style>
