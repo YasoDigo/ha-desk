@@ -30,7 +30,7 @@
 
 ## Install
 
-1. Download the latest installer (`HA Desk_x.y.z_x64-setup.exe`) from [Releases](../../releases).
+1. Download the latest installer (`ha-desk_0.1.0_x64-setup.exe`) from [Releases](../../releases).
 2. Run it. The installer is **not code-signed yet**, so Windows SmartScreen may warn you: choose *More info → Run anyway*. You can compare the file with `SHA256SUMS.txt` from the release page.
 
 ## First-time setup
