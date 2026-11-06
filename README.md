@@ -2,7 +2,7 @@
 
 <h1 align="center">HA Desk</h1>
 
-<p align="center">A small Windows tray app that controls <a href="https://www.home-assistant.io/">Home Assistant</a> directly from your desktop.<br>English | <a href="README.tr.md">Turkce</a></p>
+<p align="center">A small Windows tray app that controls <a href="https://www.home-assistant.io/">Home Assistant</a> directly from your desktop.<br>English | <a href="README.tr.md">Türkçe</a></p>
 
 <p align="center">
   <img src="docs/screenshots/en/popup-dark.png" width="300" alt="Tiles, dark">
