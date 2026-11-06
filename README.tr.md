@@ -30,7 +30,7 @@
 
 ## Kurulum
 
-1. [Releases](../../releases) sayfasından son kurulum dosyasını (`HA Desk_x.y.z_x64-setup.exe`) indir.
+1. [Releases](../../releases) sayfasından son kurulum dosyasını (`ha-desk_0.1.0_x64-setup.exe`) indir.
 2. Çalıştır. Kurulum dosyası **henüz imzalı değil**, bu yüzden SmartScreen uyarabilir: *Daha fazla bilgi → Yine de çalıştır*. Dosyayı sürüm sayfasındaki `SHA256SUMS.txt` ile karşılaştırabilirsin.
 
 ## İlk kurulum
